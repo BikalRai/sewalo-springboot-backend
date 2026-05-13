@@ -56,9 +56,10 @@ public class AuthService {
     private final NotificationService notificationService;
     private final OTPTokenService otpTokenService;
     private final OTPTokenRepository otpTokenRepository;
+    private final RefreshTokenService refreshTokenService;
 
 
-    public AuthService(UserRepository userRepository, AuthenticationManager authenticationManager, CustomUserDetailsService customUserDetailsService, JwtUtils jwtUtils, PasswordEncoder passwordEncoder, RefreshTokenRepository refreshTokenRepository, NotificationService notificationService, OTPTokenService otpTokenService, OTPTokenRepository otpTokenRepository) {
+    public AuthService(UserRepository userRepository, AuthenticationManager authenticationManager, CustomUserDetailsService customUserDetailsService, JwtUtils jwtUtils, PasswordEncoder passwordEncoder, RefreshTokenRepository refreshTokenRepository, NotificationService notificationService, OTPTokenService otpTokenService, OTPTokenRepository otpTokenRepository, RefreshTokenService refreshTokenService) {
         this.userRepository = userRepository;
         this.authenticationManager = authenticationManager;
         this.customUserDetailsService = customUserDetailsService;
@@ -68,17 +69,20 @@ public class AuthService {
         this.notificationService = notificationService;
         this.otpTokenService = otpTokenService;
         this.otpTokenRepository = otpTokenRepository;
+        this.refreshTokenService = refreshTokenService;
     }
 
     public APIResponse registerUser(AuthRegistrationRequestDto request) throws MessagingException {
 
-
+        log.info("Registering account...");
         Optional<User> foundUser = userRepository.findUserByEmail(request.getEmail());
 
         if (foundUser.isPresent()) {
+            log.info("Email already registered: {}", request.getEmail());
             throw new BadRequestException("Email already registered.");
         }
 
+        log.info("Creating user...");
         User user = new User();
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
@@ -88,7 +92,7 @@ public class AuthService {
             throw new BadRequestException("Role not supported.");
         }
 
-        if (request.getRole() != null && request.getRole().equalsIgnoreCase("provider")) {
+        if (request.getRole().equalsIgnoreCase("provider")) {
             user.setRole(UserRole.PROVIDER);
         } else {
             user.setRole(UserRole.CUSTOMER);
@@ -103,10 +107,12 @@ public class AuthService {
         }
 
         User savedUser = userRepository.save(user);
+        log.info("Created user");
 
+        log.info("Sending email to: {}", request.getEmail());
         EmailRequest emailRequest = new EmailRequest();
         emailRequest.setEmail(user.getEmail());
-        emailRequest.setSubject("Welcome to Sewa Sathi");
+        emailRequest.setSubject("Welcome to Sewalo");
 
         String otpToken = NumberHelper.generateOtp();
 
@@ -116,8 +122,10 @@ public class AuthService {
         otpTokenRepository.save(generatedOtp);
 
         notificationService.sendEmail(emailRequest, otpToken, "/email/verify-account");
+        log.info("Email sent successfully");
 
         UserResponseDto userResponseDto = new UserResponseDto(savedUser);
+        log.info("Registered account");
 
         return APIResponse.success(userResponseDto, "Successfully registered user.", Http_Constants.CREATED);
     }
@@ -160,6 +168,51 @@ public class AuthService {
         data.put("userId", user.getId());
 
         return APIResponse.success(data, "Successfully authenticated user.", Http_Constants.OK);
+    }
+
+    public APIResponse refreshToken(String token, HttpServletResponse response) {
+        if (!jwtUtils.validateToken(token)) {
+            throw new BadRequestException("Invalid refresh token");
+        }
+
+        RefreshToken refreshTokenFromDB = refreshTokenService.getRefreshToken(token);
+
+        User user = refreshTokenFromDB.getUser();
+
+        if (!user.isActive()) {
+            throw new ForbiddenException("Inactive account.");
+        }
+
+        if (user.isAccountLocked()) {
+            throw new ForbiddenException("Account locked.");
+        }
+
+        String username = refreshTokenFromDB.getUser().getEmail();
+        String accessToken = jwtUtils.generateToken(username);
+        String refreshToken = jwtUtils.generateRefreshToken(username);
+        LocalDateTime expiry = LocalDateTime.now().plusDays(7);
+
+        refreshTokenRepository.save(new RefreshToken(refreshToken, expiry, user));
+
+        ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken)
+                .httpOnly(true)
+                .secure(false)
+//                .secure(true)
+                .path("/api/v1/auth/refresh")
+                .maxAge(7 * 24 * 60 * 60)
+                .sameSite("Lax")
+//                .sameSite("Strict")
+                .build();
+
+        response.setHeader("Set-Cookie", cookie.toString());
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("access_token", accessToken);
+        data.put("role", user.getRole());
+        data.put("userId", user.getId());
+
+        return APIResponse.success(data, "Successfully authenticated user.", Http_Constants.OK);
+
     }
 
     public APIResponse loginWithGoogle(GoogleLoginRequestDto request, HttpServletResponse response) {
