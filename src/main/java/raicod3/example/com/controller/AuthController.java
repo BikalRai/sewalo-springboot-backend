@@ -13,9 +13,11 @@ import raicod3.example.com.dto.otp.OtpRquestDto;
 import raicod3.example.com.dto.user.AuthRegistrationRequestDto;
 import raicod3.example.com.dto.user.AuthRequestDto;
 import raicod3.example.com.dto.user.PasswordUpdateRequestDto;
-import raicod3.example.com.dto.user.UserResponseDto;
+import raicod3.example.com.exception.BadRequestException;
+import raicod3.example.com.exception.ForbiddenException;
 import raicod3.example.com.jwt.JwtUtils;
 import raicod3.example.com.model.RefreshToken;
+import raicod3.example.com.model.User;
 import raicod3.example.com.service.AuthService;
 import raicod3.example.com.service.NotificationService;
 import raicod3.example.com.service.RefreshTokenService;
@@ -57,18 +59,12 @@ public class AuthController {
         return new ResponseEntity<>(response,HttpStatus.OK);
     }
 
-    @GetMapping("/refresh")
-    public APIResponse refreshToken(@CookieValue(name = "refreshToken") String refreshToken) {
+    @PostMapping("/refresh")
+    public ResponseEntity<APIResponse> refreshToken(@CookieValue(name = "refreshToken", required = false) String refreshToken, HttpServletResponse response) {
 
-        RefreshToken refreshTokenFromDB = refreshTokenService.getRefreshToken(refreshToken);
+       APIResponse res =  authService.refreshToken(refreshToken, response);
 
-        String username = refreshTokenFromDB.getUser().getEmail();
-        String newAccessToken = jwtUtils.generateToken(username);
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("access_token", newAccessToken);
-
-        return APIResponse.success(data, "Successfully authenticated user", Http_Constants.OK);
+        return ResponseEntity.ok(res);
     }
 
     @PostMapping("/google")
