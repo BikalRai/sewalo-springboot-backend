@@ -4,8 +4,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import raicod3.example.com.constants.Http_Constants;
+import raicod3.example.com.custom.CustomUserDetails;
 import raicod3.example.com.dto.user.UserResponseDto;
 import raicod3.example.com.service.UserService;
 import raicod3.example.com.utilities.APIResponse;
@@ -34,6 +36,13 @@ public class UserController {
         PaginationData data = new PaginationData(allUsers.getContent(), page, per_page, allUsers.getTotalElements());
 
         return ResponseEntity.ok(APIResponse.paginate("List of users", data, Http_Constants.OK));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<APIResponse> getLoggedInUser(@AuthenticationPrincipal CustomUserDetails customUserDetails) {
+        UserResponseDto user = userService.loggedInUser(customUserDetails);
+
+        return ResponseEntity.ok(APIResponse.success(user, "User details", Http_Constants.OK));
     }
 
     @GetMapping("/{userId}")

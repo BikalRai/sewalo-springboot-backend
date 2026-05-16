@@ -4,6 +4,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import raicod3.example.com.constants.Http_Constants;
+import raicod3.example.com.custom.CustomUserDetails;
+import raicod3.example.com.custom.CustomUserDetailsService;
 import raicod3.example.com.dto.user.UserResponseDto;
 import raicod3.example.com.exception.ResourceNotFoundException;
 import raicod3.example.com.model.User;
@@ -30,6 +32,12 @@ public class UserService {
         Page<User> users = userRepository.findAll(pageable);
 
         return users.map(UserResponseDto::new);
+    }
+
+    public UserResponseDto loggedInUser(CustomUserDetails customUserDetails) {
+        User user = userRepository.findUserByEmail(customUserDetails.getUsername()).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        return new UserResponseDto(user);
     }
 
     public UserResponseDto getUserById(UUID id) {
