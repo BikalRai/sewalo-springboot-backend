@@ -26,6 +26,9 @@ spring:
               - openid
               - email
               - profile
+  output:
+    ansi:
+      enabled: always
 
   mail:
     host: smtp.gmail.com
@@ -47,4 +50,4 @@ logging:
       hibernate: WARN
     raicod3.example.com: DEBUG
   pattern:
-    console: "%d{HH:mm:ss} [%level] %msg%n"
+    console: "%d{HH:mm:ss} [%clr(%level){withPad}] %msg%n"

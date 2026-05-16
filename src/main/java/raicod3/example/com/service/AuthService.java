@@ -4,14 +4,17 @@ import com.nimbusds.jose.shaded.gson.Gson;
 import jakarta.mail.MessagingException;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseCookie;
+import org.springframework.http.*;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
+import raicod3.example.com.annotation.Auditable;
 import raicod3.example.com.constants.Http_Constants;
 import raicod3.example.com.custom.CustomUserDetailsService;
 import raicod3.example.com.dto.email.EmailRequest;
@@ -72,6 +75,7 @@ public class AuthService {
         this.refreshTokenService = refreshTokenService;
     }
 
+    @Auditable(action = "REGISTER")
     public APIResponse registerUser(AuthRegistrationRequestDto request) throws MessagingException {
 
         log.info("Registering account...");
@@ -130,13 +134,20 @@ public class AuthService {
         return APIResponse.success(userResponseDto, "Successfully registered user.", Http_Constants.CREATED);
     }
 
+    @Auditable(action = "LOGIN")
     public APIResponse authenticate(AuthRequestDto request, HttpServletResponse response) {
+        log.debug("Attempting to authenticate user...");
         try {
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+        } catch (BadCredentialsException e) {
+            log.warn("Authentication failed: Invalid credentials");
+            throw new UsernameNotFoundException("Invalid credentials.");
         } catch (Exception e) {
             log.error("Authentication failed: {}", e.getMessage());
-            throw new UsernameNotFoundException("Invalid credentials.");
+            throw e;
         }
+
+        log.debug("Getting user details and checking domain records...");
         UserDetails userDetails = customUserDetailsService.loadUserByUsername(request.getEmail());
 
 
@@ -144,12 +155,14 @@ public class AuthService {
         user.setProvider(AuthProvider.LOCAL);
 
 
+        log.debug("Generating secure access and refresh token pairs...");
         String accessToken = jwtUtils.generateToken(userDetails.getUsername());
         String refreshToken = jwtUtils.generateRefreshToken(userDetails.getUsername());
         LocalDateTime expiry = LocalDateTime.now().plusDays(7);
 
         refreshTokenRepository.save(new RefreshToken(refreshToken, expiry, user));
 
+        log.debug("Configuring secure HttpOnly refresh token cookie wrapper...");
         ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken)
                 .httpOnly(true)
                 .secure(false)
@@ -166,10 +179,14 @@ public class AuthService {
         data.put("access_token", accessToken);
         data.put("role", user.getRole());
         data.put("userId", user.getId());
+        data.put("isActive", user.isActive());
+
+        log.info("User authenticated. User id: {}", user.getId());
 
         return APIResponse.success(data, "Successfully authenticated user.", Http_Constants.OK);
     }
 
+    @Auditable(action = "REFRESH_TOKEN")
     public APIResponse refreshToken(String token, HttpServletResponse response) {
         if (!jwtUtils.validateToken(token)) {
             throw new BadRequestException("Invalid refresh token");
@@ -210,41 +227,63 @@ public class AuthService {
         data.put("access_token", accessToken);
         data.put("role", user.getRole());
         data.put("userId", user.getId());
+        data.put("isActive", user.isActive());
 
         return APIResponse.success(data, "Successfully authenticated user.", Http_Constants.OK);
 
     }
 
+    @Auditable(action = "GOOGLE_AUTH")
     public APIResponse loginWithGoogle(GoogleLoginRequestDto request, HttpServletResponse response) {
-        String idToken = request.getIdToken();
+        log.debug("Retrieving access token...");
+        String acceeKey = request.getIdToken();
 
-        String[] parts = idToken.split("\\.");
-        if (parts.length != 2) {
-            throw new BadRequestException("Invalid ID Token.");
+        RestTemplate restTemplate = new RestTemplate();
+        String url = "https://www.googleapis.com/oauth2/v3/userinfo";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(acceeKey);
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<Map> googleResponse;
+
+        try {
+            log.debug("Communicating with Google...");
+            googleResponse = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+            log.info("Successful Google response");
+        } catch (Exception e) {
+            log.error("Failed to get response from Google: {}", e.getMessage());
+            throw new BadRequestException("Invalid Google token");
         }
 
-        String payloadJson = new String(Base64.getDecoder().decode(parts[1]));
-        Map<String, Object> payload = new Gson().fromJson(payloadJson, Map.class);
+        Map<String, Object> payload = googleResponse.getBody();
 
         String sub = (String) payload.get("sub");
         String email = (String) payload.get("email");
         String fullName = (String) payload.get("name");
 
+        log.debug("Validating if user exits...");
         Optional<User> existing = userRepository.findByProviderId(sub);
 
         User user;
 
         if (existing.isPresent()) {
             user = existing.get();
+            log.info("User exists!");
         } else {
+            log.debug("Finding user with email...");
             Optional<User> foundUser = userRepository.findUserByEmail(email);
             if (foundUser.isPresent()) {
+                log.info("User with email found!");
                 user = foundUser.get();
                 user.setProvider(AuthProvider.GOOGLE);
                 user.setProviderId(sub);
                 user.setActive(true);
+                log.debug("Updating...");
                 userRepository.save(user);
+                log.info("Updated user!");
             } else {
+                log.debug("Creating new user...");
                 user = new User();
                 user.setEmail(email);
                 user.setFullName(fullName);
@@ -254,15 +293,18 @@ public class AuthService {
                 user.setRole(UserRole.CUSTOMER);
                 user.setCreatedAt(LocalDateTime.now());
                 userRepository.save(user);
+                log.info("Created new user!");
             }
         }
 
+        log.debug("Generating secure access and refresh token pairs...");
         String accessToken = jwtUtils.generateToken(user.getEmail());
         String refreshToken = jwtUtils.generateRefreshToken(user.getEmail());
         LocalDateTime expiry = LocalDateTime.now().plusDays(7);
 
         refreshTokenRepository.save(new RefreshToken(refreshToken, expiry, user));
 
+        log.debug("Setting Http cookie...");
         ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken)
                 .httpOnly(true)
                 .secure(false)
@@ -279,10 +321,14 @@ public class AuthService {
         data.put("access_token", accessToken);
         data.put("role", user.getRole());
         data.put("userId", user.getId());
+        data.put("isActive", user.isActive());
+        data.put("email", user.getEmail());
+        log.info("Successfully authenticated with Google: {}", user.getEmail());
 
         return APIResponse.success(data, "Successfully authenticated user.", Http_Constants.OK);
     }
 
+    @Auditable(action = "ACCOUNT_VERIFICATION")
     @Transactional
     public APIResponse accountVerification (String otpToken) {
         OTPToken existingToken = otpTokenService.getOTPTokenByOtpToken(otpToken);
@@ -307,6 +353,7 @@ public class AuthService {
         return APIResponse.success(new UserResponseDto(foundUser), "Successfully Activated account.", Http_Constants.OK);
     }
 
+    @Auditable(action = "UPDATE_PASSWORD")
     @Transactional
     public APIResponse updatePassword(PasswordUpdateRequestDto request, HttpServletResponse response) {
 

@@ -69,9 +69,8 @@ public class AuthController {
 
     @PostMapping("/google")
     public ResponseEntity<APIResponse> googleLogin(@RequestBody GoogleLoginRequestDto request, HttpServletResponse response) {
-        log.info("Attempting to lgin google login: {}", request);
+        log.info("Attempting to authenticate with google");
         APIResponse res = authService.loginWithGoogle(request, response);
-        log.info("Login response: {}", res);
         return new ResponseEntity<>(res,HttpStatus.OK);
     }
 
