@@ -28,9 +28,12 @@ public class User {
     private String email;
     private String password;
 
+    private String imageUrl;
+
     @Enumerated(EnumType.STRING)
     private UserRole role;
     private boolean isActive;
+    private boolean isOnboarded;
     private LocalDateTime createdAt;
 
     private int failedLoginAttempts;

@@ -1,7 +1,6 @@
 package raicod3.example.com.service;
 
-import com.nimbusds.jose.shaded.gson.Gson;
-import jakarta.mail.MessagingException;
+
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
@@ -30,6 +29,7 @@ import raicod3.example.com.exception.BadRequestException;
 import raicod3.example.com.exception.ForbiddenException;
 import raicod3.example.com.exception.ResourceNotFoundException;
 import raicod3.example.com.jwt.JwtUtils;
+import raicod3.example.com.lib.rabbitmq.RabbitMQProducer;
 import raicod3.example.com.model.OTPToken;
 import raicod3.example.com.model.RefreshToken;
 import raicod3.example.com.model.User;
@@ -41,10 +41,7 @@ import raicod3.example.com.utilities.NumberHelper;
 import raicod3.example.com.utilities.PasswordValidation;
 
 import java.time.LocalDateTime;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -56,27 +53,27 @@ public class AuthService {
     private final JwtUtils jwtUtils;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final NotificationService notificationService;
     private final OTPTokenService otpTokenService;
     private final OTPTokenRepository otpTokenRepository;
     private final RefreshTokenService refreshTokenService;
+    private final RabbitMQProducer rabbitMQProducer;
 
 
-    public AuthService(UserRepository userRepository, AuthenticationManager authenticationManager, CustomUserDetailsService customUserDetailsService, JwtUtils jwtUtils, PasswordEncoder passwordEncoder, RefreshTokenRepository refreshTokenRepository, NotificationService notificationService, OTPTokenService otpTokenService, OTPTokenRepository otpTokenRepository, RefreshTokenService refreshTokenService) {
+    public AuthService(UserRepository userRepository, AuthenticationManager authenticationManager, CustomUserDetailsService customUserDetailsService, JwtUtils jwtUtils, PasswordEncoder passwordEncoder, RefreshTokenRepository refreshTokenRepository, RabbitMQProducer rabbitMQProducer, OTPTokenService otpTokenService, OTPTokenRepository otpTokenRepository, RefreshTokenService refreshTokenService) {
         this.userRepository = userRepository;
         this.authenticationManager = authenticationManager;
         this.customUserDetailsService = customUserDetailsService;
         this.jwtUtils = jwtUtils;
         this.passwordEncoder = passwordEncoder;
         this.refreshTokenRepository = refreshTokenRepository;
-        this.notificationService = notificationService;
+        this.rabbitMQProducer = rabbitMQProducer;
         this.otpTokenService = otpTokenService;
         this.otpTokenRepository = otpTokenRepository;
         this.refreshTokenService = refreshTokenService;
     }
 
     @Auditable(action = "REGISTER")
-    public APIResponse registerUser(AuthRegistrationRequestDto request) throws MessagingException {
+    public APIResponse registerUser(AuthRegistrationRequestDto request, HttpServletResponse response) {
 
         log.info("Registering account...");
         Optional<User> foundUser = userRepository.findUserByEmail(request.getEmail());
@@ -110,28 +107,41 @@ public class AuthService {
             throw new BadRequestException(passwordValidation);
         }
 
+        log.debug("Generating secure access and refresh token...");
+        String accessToken = jwtUtils.generateToken(user.getEmail());
+        String refreshToken = jwtUtils.generateRefreshToken(user.getEmail());
+
+        ResponseCookie responseCookie = createCookie(refreshToken);
+        setCookieHeader(responseCookie.toString(), response);
+        log.info("Created tokens..");
+
         User savedUser = userRepository.save(user);
         log.info("Created user");
 
-        log.info("Sending email to: {}", request.getEmail());
-        EmailRequest emailRequest = new EmailRequest();
-        emailRequest.setEmail(user.getEmail());
-        emailRequest.setSubject("Welcome to Sewalo");
-
+        log.info("Queueing welcome email for: {}", request.getEmail());
         String otpToken = NumberHelper.generateOtp();
 
         OTPToken generatedOtp = new OTPToken(otpToken, user, TokenType.REGISTER);
         generatedOtp.setOtpExpires(LocalDateTime.now().plusMinutes(5));
-
         otpTokenRepository.save(generatedOtp);
 
-        notificationService.sendEmail(emailRequest, otpToken, "/email/verify-account");
-        log.info("Email sent successfully");
+        EmailRequest emailRequest = new EmailRequest();
+        emailRequest.setEmail(user.getEmail());
+        emailRequest.setOtpToken(otpToken);
+        emailRequest.setSubject("Welcome to Sewalo");
+        emailRequest.setTemplatePath("/email/verify-account");
+
+        rabbitMQProducer.sendEmailNotification(emailRequest);
+        log.info("Welcome email queued successfully for: {}", request.getEmail());
 
         UserResponseDto userResponseDto = new UserResponseDto(savedUser);
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("access_token", accessToken);
+        res.put("user", userResponseDto);
         log.info("Registered account");
 
-        return APIResponse.success(userResponseDto, "Successfully registered user.", Http_Constants.CREATED);
+        return APIResponse.success(res, "Successfully registered user.", Http_Constants.CREATED);
     }
 
     @Auditable(action = "LOGIN")
@@ -163,23 +173,15 @@ public class AuthService {
         refreshTokenRepository.save(new RefreshToken(refreshToken, expiry, user));
 
         log.debug("Configuring secure HttpOnly refresh token cookie wrapper...");
-        ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken)
-                .httpOnly(true)
-                .secure(false)
-//                .secure(true)
-                .path("/api/v1/auth/refresh")
-                .maxAge(7 * 24 * 60 * 60)
-                .sameSite("Lax")
-//                .sameSite("Strict")
-                .build();
-
-        response.setHeader("Set-Cookie", cookie.toString());
+        ResponseCookie cookie = createCookie(refreshToken);
+        setCookieHeader(cookie.toString(), response);
 
         Map<String, Object> data = new HashMap<>();
         data.put("access_token", accessToken);
         data.put("role", user.getRole());
         data.put("userId", user.getId());
         data.put("isActive", user.isActive());
+        data.put("isOnboarded", user.isOnboarded());
 
         log.info("User authenticated. User id: {}", user.getId());
 
@@ -211,17 +213,8 @@ public class AuthService {
 
         refreshTokenRepository.save(new RefreshToken(refreshToken, expiry, user));
 
-        ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken)
-                .httpOnly(true)
-                .secure(false)
-//                .secure(true)
-                .path("/api/v1/auth/refresh")
-                .maxAge(7 * 24 * 60 * 60)
-                .sameSite("Lax")
-//                .sameSite("Strict")
-                .build();
-
-        response.setHeader("Set-Cookie", cookie.toString());
+        ResponseCookie cookie = createCookie(refreshToken);
+        setCookieHeader(cookie.toString(), response);
 
         Map<String, Object> data = new HashMap<>();
         data.put("access_token", accessToken);
@@ -305,17 +298,8 @@ public class AuthService {
         refreshTokenRepository.save(new RefreshToken(refreshToken, expiry, user));
 
         log.debug("Setting Http cookie...");
-        ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken)
-                .httpOnly(true)
-                .secure(false)
-//                .secure(true)
-                .path("/api/v1/auth/refresh")
-                .maxAge(7 * 24 * 60 * 60)
-                .sameSite("Lax")
-//                .sameSite("Strict")
-                .build();
-
-        response.setHeader("Set-Cookie", cookie.toString());
+        ResponseCookie cookie = createCookie(refreshToken);
+        setCookieHeader(cookie.toString(), response);
 
         Map<String, Object> data = new HashMap<>();
         data.put("access_token", accessToken);
@@ -331,6 +315,7 @@ public class AuthService {
     @Auditable(action = "ACCOUNT_VERIFICATION")
     @Transactional
     public APIResponse accountVerification (String otpToken) {
+        log.debug("Retrieving verification code...");
         OTPToken existingToken = otpTokenService.getOTPTokenByOtpToken(otpToken);
 
         if(existingToken.getOtpExpires().isBefore(LocalDateTime.now())) {
@@ -351,6 +336,39 @@ public class AuthService {
         otpTokenService.deleteOTPToken(existingToken);
 
         return APIResponse.success(new UserResponseDto(foundUser), "Successfully Activated account.", Http_Constants.OK);
+    }
+
+    @Auditable(action = "RESEND_VERIFICATION_CODE")
+    public APIResponse resendVerificationCode(UUID userId) {
+        log.debug("Validating if user exits...");
+        User foundUser = userRepository.findById(userId).orElseThrow(() -> new BadRequestException("Account not found."));
+
+        log.debug("Retrieving existing verification code...");
+       OTPToken existingToken = otpTokenService.getOTPTokenByUser(foundUser);
+
+       if(existingToken != null) {
+           log.debug("Deleting existing verification code...");
+           otpTokenService.deleteOTPToken(existingToken);
+       }
+
+       log.debug("Creating verification code...");
+       String generateOtp = NumberHelper.generateOtp();
+       OTPToken otpToken = new OTPToken(generateOtp, foundUser, TokenType.GENERATION);
+
+       otpTokenRepository.save(otpToken);
+       log.info("Created verification code...");
+
+       EmailRequest emailRequest = new EmailRequest();
+       emailRequest.setEmail(foundUser.getEmail());
+       emailRequest.setSubject("Verification Code");
+       emailRequest.setOtpToken(generateOtp);
+       emailRequest.setTemplatePath("/email/verificationCode.html");
+
+       rabbitMQProducer.sendEmailNotification(emailRequest);
+       log.info("Verification code resend email queued successfully for: {}", foundUser.getEmail());
+       log.info("Sending verification code...");
+
+       return APIResponse.success("Verification code resent successfully", Http_Constants.OK);
     }
 
     @Auditable(action = "UPDATE_PASSWORD")
@@ -386,4 +404,41 @@ public class AuthService {
         return APIResponse.success(res, "Successfully updated password.", Http_Constants.OK);
     }
 
+    public APIResponse forgotPassword (EmailRequest req) {
+        log.info("Processing forgot password for: {}", req.getEmail());
+
+        User user = userRepository.findByEmail(req.getEmail()).orElseThrow(() -> new ResourceNotFoundException("No account found with that email."));
+
+        String otpToken = NumberHelper.generateOtp();
+        OTPToken generatedOtp = new OTPToken(otpToken, user, TokenType.PASSWORD_RESET);
+        generatedOtp.setOtpExpires(LocalDateTime.now().plusMinutes(7));
+        otpTokenRepository.save(generatedOtp);
+
+        EmailRequest emailRequest = new EmailRequest();
+        emailRequest.setEmail(req.getEmail());
+        emailRequest.setSubject("Forgot Password");
+        emailRequest.setOtpToken(otpToken);
+        emailRequest.setTemplatePath("/email/forgot-password");
+
+        rabbitMQProducer.sendEmailNotification(emailRequest);
+        log.info("Password reset email queued for: {}", req.getEmail());
+
+        return APIResponse.success("Password reset email sent successfully.", Http_Constants.OK);
+    }
+
+    private ResponseCookie createCookie(String token) {
+        return ResponseCookie.from("refreshToken", token)
+                .httpOnly(true)
+                .secure(false)
+//                .secure(true)
+                .path("/api/v1/auth/refresh")
+                .maxAge(7 * 24 * 60 * 60)
+                .sameSite("Lax")
+//                .sameSite("Strict")
+                .build();
+    }
+
+    private void setCookieHeader(String cookie, HttpServletResponse response) {
+        response.setHeader("Set-Cookie", cookie);
+    }
 }

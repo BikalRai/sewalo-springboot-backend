@@ -6,26 +6,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import raicod3.example.com.constants.Http_Constants;
 import raicod3.example.com.dto.email.EmailRequest;
 import raicod3.example.com.dto.google.GoogleLoginRequestDto;
 import raicod3.example.com.dto.otp.OtpRquestDto;
 import raicod3.example.com.dto.user.AuthRegistrationRequestDto;
 import raicod3.example.com.dto.user.AuthRequestDto;
+import raicod3.example.com.dto.user.OTPResendDto;
 import raicod3.example.com.dto.user.PasswordUpdateRequestDto;
-import raicod3.example.com.exception.BadRequestException;
-import raicod3.example.com.exception.ForbiddenException;
-import raicod3.example.com.jwt.JwtUtils;
-import raicod3.example.com.model.RefreshToken;
-import raicod3.example.com.model.User;
 import raicod3.example.com.service.AuthService;
-import raicod3.example.com.service.NotificationService;
-import raicod3.example.com.service.RefreshTokenService;
 import raicod3.example.com.utilities.APIResponse;
-import raicod3.example.com.utilities.NumberHelper;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.UUID;
+
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -33,22 +25,16 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
-    private final JwtUtils jwtUtils;
-    private final RefreshTokenService refreshTokenService;
-    private final NotificationService notificationService;
 
-    public AuthController(AuthService authService, JwtUtils jwtUtils, RefreshTokenService refreshTokenService, NotificationService notificationService) {
+    public AuthController(AuthService authService) {
         this.authService = authService;
-        this.jwtUtils = jwtUtils;
-        this.refreshTokenService = refreshTokenService;
-        this.notificationService = notificationService;
     }
 
     @PostMapping("/register")
-    public ResponseEntity<APIResponse> register(@RequestBody AuthRegistrationRequestDto request) throws MessagingException {
-        APIResponse response = authService.registerUser(request);
+    public ResponseEntity<APIResponse> register(@RequestBody AuthRegistrationRequestDto request, HttpServletResponse response) throws MessagingException {
+        APIResponse res = authService.registerUser(request, response);
 
-        return new ResponseEntity<>(response,HttpStatus.CREATED);
+        return new ResponseEntity<>(res,HttpStatus.CREATED);
     }
 
     @PostMapping("/login")
@@ -81,17 +67,20 @@ public class AuthController {
         return new ResponseEntity<>(res,HttpStatus.OK);
     }
 
+    @PostMapping("/resend-code")
+    public ResponseEntity<APIResponse> resendCode(@RequestBody OTPResendDto dto) {
+        UUID idUUID = UUID.fromString(dto.getUserId());
+        APIResponse res = authService.resendVerificationCode(idUUID);
+        return new ResponseEntity<>(res,HttpStatus.CREATED);
+    }
+
     @PostMapping("/forgot-password")
-    public ResponseEntity<APIResponse> forgotPassword(@RequestBody EmailRequest req) throws MessagingException {
-        log.info("Attempting to reset password: {}", req);
+    public ResponseEntity<APIResponse> forgotPassword(@RequestBody EmailRequest req) {
+        log.info("Attempting to reset password for: {}", req.getEmail());
 
-        String otpToken = NumberHelper.generateOtp();
-        req.setSubject("Forgot Password");
+        APIResponse res = authService.forgotPassword(req);
 
-        notificationService.sendEmail(req, otpToken, "/email/forgot-password");
-        log.info("Password reset email sent");
-
-        return new ResponseEntity<>(APIResponse.success("Email sent successfully", Http_Constants.OK), HttpStatus.OK);
+        return new ResponseEntity<>(res, HttpStatus.OK);
     }
 
     @PostMapping("/reset-password")

@@ -40,7 +40,6 @@ public class NotificationService {
 
 
         User user = userRepository.findUserByEmail(req.getEmail()).orElseThrow(() -> new BadRequestException("User not found"));
-        otpTokenRepository.save(new OTPToken(otpToken, user, TokenType.PASSWORD_RESET));
 
         Context context = new Context();
         context.setVariable("fullName", user.getFullName());
@@ -57,6 +56,7 @@ public class NotificationService {
         messageHelper.setText(htmlContent, true);
 
         mailSender.send(message);
+        log.info("Email sent to: {}", req.getEmail());
     }
 
 
