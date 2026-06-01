@@ -3,12 +3,16 @@ package raicod3.example.com.controller;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import raicod3.example.com.constants.Http_Constants;
 import raicod3.example.com.custom.CustomUserDetails;
+import raicod3.example.com.dto.customer.UserAddressDto;
 import raicod3.example.com.dto.user.UserResponseDto;
+import raicod3.example.com.model.UserAddress;
+import raicod3.example.com.service.UserAddressService;
 import raicod3.example.com.service.UserService;
 import raicod3.example.com.utilities.APIResponse;
 import raicod3.example.com.utilities.PaginationData;
@@ -20,9 +24,11 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private final UserAddressService userAddressService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, UserAddressService userAddressService) {
         this.userService = userService;
+        this.userAddressService = userAddressService;
     }
 
     @GetMapping("")
@@ -59,8 +65,10 @@ public class UserController {
         return ResponseEntity.ok(APIResponse.success(user, "User retrieved successfully", Http_Constants.OK));
     }
 
-//    @PutMapping("/update/{userId}")
-//    public ResponseEntity<APIResponse> updateUser(@PathVariable("userId") UUID userId, @RequestBody UserEmailRequestDto userEmailRequestDto) {
-//
-//    }
+    @PatchMapping("/update/{userId}")
+    public ResponseEntity<APIResponse> updateCustomerAddress(@PathVariable("userId") UUID userId, @RequestBody UserAddressDto addressDto) {
+        APIResponse res = userAddressService.addUserAddress(userId, addressDto);
+
+        return new ResponseEntity<>(res, HttpStatus.CREATED);
+    }
 }

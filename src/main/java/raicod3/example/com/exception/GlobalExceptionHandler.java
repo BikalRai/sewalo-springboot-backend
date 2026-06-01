@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import raicod3.example.com.constants.Http_Constants;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -33,5 +36,35 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> handleMessagingException(MessagingException ex) {
         ErrorDetails errorDetails = new ErrorDetails("Email send error", ex.getMessage(), Http_Constants.INTERNAL_SERVER_ERROR);
         return new ResponseEntity<>(errorDetails, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<?> handleValidationException(org.springframework.web.bind.MethodArgumentNotValidException ex) {
+        Map<String, String> errors = new HashMap<>();
+        ex.getBindingResult().getFieldErrors().forEach((error) -> errors.put(error.getField(), error.getDefaultMessage()));
+
+        ErrorDetails errorDetails = new ErrorDetails("Validation error", errors.toString(), Http_Constants.BAD_REQUEST);
+
+        return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<?> handleForbiddenException(ForbiddenException ex) {
+        ErrorDetails errorDetails = new ErrorDetails("Forbidden", ex.getMessage(), Http_Constants.FORBIDDEN);
+
+        return new ResponseEntity<>(errorDetails, HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<?> handleGeneral(Exception ex) {
+        ErrorDetails errorDetails = new ErrorDetails("Exception", ex.getMessage(), Http_Constants.INTERNAL_SERVER_ERROR);
+
+        return new ResponseEntity<>(errorDetails, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<?> handleUnauthorizedException(UnauthorizedException ex) {
+        ErrorDetails errorDetails = new ErrorDetails("Unauthorized", ex.getMessage(), Http_Constants.UNAUTHORIZED);
+        return new ResponseEntity<>(errorDetails, HttpStatus.UNAUTHORIZED);
     }
 }

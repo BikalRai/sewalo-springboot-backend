@@ -20,6 +20,7 @@ public class UserResponseDto {
     private String role;
     private LocalDateTime createdAt;
     private boolean isActive;
+    private boolean isOnboarded;
     private boolean accountLocked;
     private LocalDateTime lockedAt;
 
@@ -30,6 +31,7 @@ public class UserResponseDto {
         this.role = user.getRole().name();
         this.createdAt = user.getCreatedAt();
         this.isActive = user.isActive();
+        this.isOnboarded = user.isOnboarded();
         this.accountLocked = user.isAccountLocked();
         this.lockedAt = user.isAccountLocked() ? user.getLockedAt() : null;
     }

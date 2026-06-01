@@ -49,6 +49,10 @@ public class OTPTokenService {
 
     }
 
+    public OTPToken getOTPTokenByUser(User user) {
+        return otpTokenRepository.findByUser(user).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
+
     public Boolean validateOTPToken(OtpRquestDto otpToken) {
         OTPToken existingToken = otpTokenRepository.findOTPTokenByOtpToken(otpToken.getOtpToken()).orElseThrow(() -> new BadRequestException("Invalid OTP Token"));
 
