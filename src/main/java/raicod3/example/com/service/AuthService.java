@@ -18,6 +18,7 @@ import raicod3.example.com.constants.Http_Constants;
 import raicod3.example.com.custom.CustomUserDetailsService;
 import raicod3.example.com.dto.email.EmailRequest;
 import raicod3.example.com.dto.google.GoogleLoginRequestDto;
+import raicod3.example.com.dto.google.GoogleOnboardingRequestDto;
 import raicod3.example.com.dto.user.AuthRegistrationRequestDto;
 import raicod3.example.com.dto.user.AuthRequestDto;
 import raicod3.example.com.dto.user.PasswordUpdateRequestDto;
@@ -28,11 +29,10 @@ import raicod3.example.com.enums.UserRole;
 import raicod3.example.com.exception.BadRequestException;
 import raicod3.example.com.exception.ForbiddenException;
 import raicod3.example.com.exception.ResourceNotFoundException;
+import raicod3.example.com.exception.UnauthorizedException;
 import raicod3.example.com.jwt.JwtUtils;
 import raicod3.example.com.lib.rabbitmq.RabbitMQProducer;
-import raicod3.example.com.model.OTPToken;
-import raicod3.example.com.model.RefreshToken;
-import raicod3.example.com.model.User;
+import raicod3.example.com.model.*;
 import raicod3.example.com.repository.OTPTokenRepository;
 import raicod3.example.com.repository.RefreshTokenRepository;
 import raicod3.example.com.repository.UserRepository;
@@ -95,8 +95,16 @@ public class AuthService {
 
         if (request.getRole().equalsIgnoreCase("provider")) {
             user.setRole(UserRole.PROVIDER);
+
+            ProviderProfile providerProfile = new ProviderProfile();
+            providerProfile.setUser(user);
+            user.setProviderProfile(providerProfile);
         } else {
             user.setRole(UserRole.CUSTOMER);
+
+            CustomerProfile customerProfile = new CustomerProfile();
+            customerProfile.setUser(user);
+            user.setCustomerProfile(customerProfile);
         }
 
         user.setCreatedAt(LocalDateTime.now());
@@ -283,7 +291,7 @@ public class AuthService {
                 user.setProvider(AuthProvider.GOOGLE);
                 user.setProviderId(sub);
                 user.setActive(true);
-                user.setRole(UserRole.CUSTOMER);
+                user.setRole(UserRole.GUEST);
                 user.setCreatedAt(LocalDateTime.now());
                 userRepository.save(user);
                 log.info("Created new user!");
@@ -307,6 +315,7 @@ public class AuthService {
         data.put("userId", user.getId());
         data.put("isActive", user.isActive());
         data.put("email", user.getEmail());
+        data.put("isOnboarded", user.isOnboarded());
         log.info("Successfully authenticated with Google: {}", user.getEmail());
 
         return APIResponse.success(data, "Successfully authenticated user.", Http_Constants.OK);
@@ -424,6 +433,59 @@ public class AuthService {
         log.info("Password reset email queued for: {}", req.getEmail());
 
         return APIResponse.success("Password reset email sent successfully.", Http_Constants.OK);
+    }
+
+    @Transactional
+    public APIResponse completeGoogleAuth(GoogleOnboardingRequestDto req, String email, HttpServletResponse response) {
+        log.debug("Finding user...");
+        User user = userRepository.findUserByEmail(email).orElseThrow(() -> new UnauthorizedException("Email not found."));
+
+        if(!user.getRole().equals(UserRole.GUEST)) {
+            throw new BadRequestException("User is already authenticated!");
+        }
+
+        String requestedRole = req.getRole().toUpperCase();
+
+        log.debug("Assigning user role...");
+        if(requestedRole.equals(UserRole.PROVIDER.name())) {
+            user.setRole(UserRole.PROVIDER);
+            ProviderProfile providerProfile = new ProviderProfile();
+            providerProfile.setUser(user);
+            user.setProviderProfile(providerProfile);
+
+        } else if(requestedRole.equals(UserRole.CUSTOMER.name())) {
+            user.setRole(UserRole.CUSTOMER);
+            CustomerProfile customerProfile = new CustomerProfile();
+            customerProfile.setUser(user);
+            user.setCustomerProfile(customerProfile);
+        } else {
+            throw new BadRequestException("Invalid user role. Only PROVIDER or CUSTOMER accepted.");
+        }
+
+        userRepository.save(user);
+        log.info("Role assigned to user!");
+
+        log.debug("Generating secure access and refresh token pairs...");
+        String accessToken = jwtUtils.generateToken(user.getEmail());
+        String refreshToken = jwtUtils.generateRefreshToken(user.getEmail());
+        LocalDateTime expiry = LocalDateTime.now().plusDays(7);
+
+        refreshTokenRepository.save(new RefreshToken(refreshToken, expiry, user));
+
+        log.debug("Setting Http cookie...");
+        ResponseCookie cookie = createCookie(refreshToken);
+        setCookieHeader(cookie.toString(), response);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("access_token", accessToken);
+        data.put("role", user.getRole());
+        data.put("userId", user.getId());
+        data.put("isActive", user.isActive());
+        data.put("email", user.getEmail());
+        data.put("isOnboarded", user.isOnboarded());
+        log.info("Successfully set the user role.");
+
+        return APIResponse.success(data, "Successfully set the user role.", Http_Constants.OK);
     }
 
     private ResponseCookie createCookie(String token) {

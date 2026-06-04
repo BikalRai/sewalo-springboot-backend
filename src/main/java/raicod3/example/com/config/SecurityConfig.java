@@ -29,6 +29,11 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
 
+    private final String ADMIN = UserRole.ADMIN.name();
+    private final String CUSTOMER = UserRole.CUSTOMER.name();
+    private final String PROVIDER = UserRole.PROVIDER.name();
+    private final String GUEST = UserRole.GUEST.name();
+
     public SecurityConfig(CustomUserDetailsService customUserDetailsService, PasswordEncoder passwordEncoder, JwtAuthFilter jwtAuthFilter) {
         this.customUserDetailsService = customUserDetailsService;
         this.passwordEncoder = passwordEncoder;
@@ -42,9 +47,10 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
-                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register").permitAll()
-                        .requestMatchers("/api/v1/auth/verify-account").hasAnyRole("CUSTOMER", "PROVIDER")
-                        .requestMatchers("/api/v1/auth/resend-code").hasAnyRole(String.valueOf(UserRole.CUSTOMER), String.valueOf(UserRole.PROVIDER))
+                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/google").permitAll()
+                        .requestMatchers("/api/v1/auth/google/set-role").hasRole(GUEST)
+                        .requestMatchers("/api/v1/auth/verify-account").hasAnyRole(CUSTOMER, PROVIDER)
+                        .requestMatchers("/api/v1/auth/resend-code").hasAnyRole(CUSTOMER,PROVIDER)
                         .requestMatchers("/api/v1/notification/**").permitAll()
                         .requestMatchers("/api/v1/users/**").permitAll()
                         .requestMatchers("/api/v1/otp/**").permitAll()

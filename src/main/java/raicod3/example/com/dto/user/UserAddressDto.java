@@ -1,4 +1,4 @@
-package raicod3.example.com.dto.customer;
+package raicod3.example.com.dto.user;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -14,11 +14,11 @@ import lombok.Setter;
 public class UserAddressDto {
 
     @NotNull
-    private Double latitude;
+    private Double lat;
 
     @NotNull
-    private Double longitude;
+    private Double lng;
 
     @NotBlank
-    private String formattedAddress;
+    private String address;
 }
