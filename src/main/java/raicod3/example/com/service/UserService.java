@@ -3,20 +3,12 @@ package raicod3.example.com.service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import raicod3.example.com.constants.Http_Constants;
 import raicod3.example.com.custom.CustomUserDetails;
-import raicod3.example.com.custom.CustomUserDetailsService;
 import raicod3.example.com.dto.user.UserResponseDto;
 import raicod3.example.com.exception.ResourceNotFoundException;
 import raicod3.example.com.model.User;
 import raicod3.example.com.repository.UserRepository;
-import raicod3.example.com.utilities.APIResponse;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class UserService {
@@ -52,5 +44,6 @@ public class UserService {
 
         return new UserResponseDto(user);
     }
+
 
 }

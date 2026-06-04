@@ -9,9 +9,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import raicod3.example.com.constants.Http_Constants;
 import raicod3.example.com.custom.CustomUserDetails;
-import raicod3.example.com.dto.customer.UserAddressDto;
+import raicod3.example.com.dto.user.UserAddressDto;
 import raicod3.example.com.dto.user.UserResponseDto;
-import raicod3.example.com.model.UserAddress;
 import raicod3.example.com.service.UserAddressService;
 import raicod3.example.com.service.UserService;
 import raicod3.example.com.utilities.APIResponse;
@@ -65,8 +64,9 @@ public class UserController {
         return ResponseEntity.ok(APIResponse.success(user, "User retrieved successfully", Http_Constants.OK));
     }
 
-    @PatchMapping("/update/{userId}")
+    @PatchMapping("/update-address/{userId}")
     public ResponseEntity<APIResponse> updateCustomerAddress(@PathVariable("userId") UUID userId, @RequestBody UserAddressDto addressDto) {
+        System.out.println("USER: " + userId);
         APIResponse res = userAddressService.addUserAddress(userId, addressDto);
 
         return new ResponseEntity<>(res, HttpStatus.CREATED);

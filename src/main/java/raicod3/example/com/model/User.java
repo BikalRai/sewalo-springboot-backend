@@ -30,6 +30,9 @@ public class User {
 
     private String imageUrl;
 
+    @Column(unique = true)
+    private String phoneNumber;
+
     @Enumerated(EnumType.STRING)
     private UserRole role;
     private boolean isActive;
@@ -43,4 +46,11 @@ public class User {
     @Enumerated(EnumType.STRING)
     private AuthProvider provider;
     private String providerId;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private ProviderProfile providerProfile;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private CustomerProfile customerProfile;
+
 }

@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import raicod3.example.com.dto.email.EmailRequest;
 import raicod3.example.com.dto.google.GoogleLoginRequestDto;
+import raicod3.example.com.dto.google.GoogleOnboardingRequestDto;
 import raicod3.example.com.dto.otp.OtpRquestDto;
 import raicod3.example.com.dto.user.AuthRegistrationRequestDto;
 import raicod3.example.com.dto.user.AuthRequestDto;
@@ -16,6 +17,7 @@ import raicod3.example.com.dto.user.PasswordUpdateRequestDto;
 import raicod3.example.com.service.AuthService;
 import raicod3.example.com.utilities.APIResponse;
 
+import java.security.Principal;
 import java.util.UUID;
 
 
@@ -59,6 +61,13 @@ public class AuthController {
         APIResponse res = authService.loginWithGoogle(request, response);
         return new ResponseEntity<>(res,HttpStatus.OK);
     }
+
+    @PostMapping("/google/set-role")
+    public ResponseEntity<APIResponse> setRole(@RequestBody GoogleOnboardingRequestDto request, HttpServletResponse response, Principal principal) {
+        APIResponse res = authService.completeGoogleAuth(request, principal.getName(), response);
+        return new ResponseEntity<>(res,HttpStatus.OK);
+    }
+
 
     @PostMapping("verify-account")
     public ResponseEntity<APIResponse> verifyAccount(@RequestBody OtpRquestDto reqDto) {

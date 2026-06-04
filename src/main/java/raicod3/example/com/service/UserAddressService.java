@@ -1,12 +1,11 @@
 package raicod3.example.com.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import raicod3.example.com.annotation.Auditable;
 import raicod3.example.com.constants.Http_Constants;
-import raicod3.example.com.dto.customer.UserAddressDto;
-import raicod3.example.com.dto.user.UserResponseDto;
+import raicod3.example.com.dto.user.UserAddressDto;
+import raicod3.example.com.dto.user.UserAddressResponseDto;
 import raicod3.example.com.exception.UnauthorizedException;
 import raicod3.example.com.model.User;
 import raicod3.example.com.model.UserAddress;
@@ -38,14 +37,18 @@ public class UserAddressService {
 
         log.debug("Adding user address...");
         UserAddress newAddress = new UserAddress();
+        user.setOnboarded(true);
         newAddress.setUser(user);
-        newAddress.setLatitude(addressDto.getLatitude());
-        newAddress.setLongitude(addressDto.getLongitude());
-        newAddress.setFormattedAddress(addressDto.getFormattedAddress());
+        newAddress.setLatitude(addressDto.getLat());
+        newAddress.setLongitude(addressDto.getLng());
+        newAddress.setFormattedAddress(addressDto.getAddress());
 
+        userRepository.save(user);
         userAddressRepo.save(newAddress);
         log.info("User successfully added address...");
 
-        return APIResponse.success(newAddress,"Added user address successfully", Http_Constants.CREATED);
+
+
+        return APIResponse.success(new UserAddressResponseDto(newAddress, newAddress.getUser()),"Added user address successfully", Http_Constants.CREATED);
     }
 }
