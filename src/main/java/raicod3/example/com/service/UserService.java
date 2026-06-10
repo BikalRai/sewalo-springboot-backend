@@ -3,6 +3,7 @@ package raicod3.example.com.service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import raicod3.example.com.annotation.Auditable;
 import raicod3.example.com.custom.CustomUserDetails;
 import raicod3.example.com.dto.user.UserResponseDto;
 import raicod3.example.com.exception.ResourceNotFoundException;

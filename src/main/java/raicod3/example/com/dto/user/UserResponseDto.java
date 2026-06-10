@@ -3,6 +3,7 @@ package raicod3.example.com.dto.user;
 import lombok.*;
 import raicod3.example.com.enums.UserRole;
 import raicod3.example.com.model.User;
+import raicod3.example.com.model.UserAddress;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -23,8 +24,11 @@ public class UserResponseDto {
     private boolean isOnboarded;
     private boolean accountLocked;
     private LocalDateTime lockedAt;
+    private String address;
+    private Double lat;
+    private Double lng;
 
-    public UserResponseDto(User user) {
+    public UserResponseDto(User user ) {
         this.id = user.getId();
         this.fullName = user.getFullName();
         this.email = user.getEmail();
@@ -34,5 +38,14 @@ public class UserResponseDto {
         this.isOnboarded = user.isOnboarded();
         this.accountLocked = user.isAccountLocked();
         this.lockedAt = user.isAccountLocked() ? user.getLockedAt() : null;
+        if (user.getUserAddress() != null) {
+            this.address = user.getUserAddress().getFormattedAddress();
+            this.lat = user.getUserAddress().getLatitude();
+            this.lng = user.getUserAddress().getLongitude();
+        } else {
+            this.address = null;
+            this.lat = null;
+            this.lng = null;
+        }
     }
 }
