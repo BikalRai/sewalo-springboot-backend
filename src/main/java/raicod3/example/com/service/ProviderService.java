@@ -27,15 +27,13 @@ public class ProviderService {
         log.debug("Validating user...");
         User user = userRepository.findByEmail(email).orElseThrow(() -> new UnauthorizedException("Unauthorized. user not found"));
 
-        log.debug("Validating provider's details...");
-        ProviderProfile existing = providerRepository.findByUser(user.getId());
-
         log.debug("Updating provider's user details...");
         user.setImageUrl(dto.getImageUrl());
         user.setPhoneNumber(dto.getPhoneNumber());
+        user.setOnboarded(true);
 
         log.debug("Fetching pre-existing provider details...");
-        ProviderProfile providerProfile = providerRepository.findByUser(user.getId());
+        ProviderProfile providerProfile = providerRepository.findByUserId(user.getId());
 
         if (providerProfile == null) {
             throw new IllegalStateException("Critical Data Error: Provider profile is missing for a registered user.");

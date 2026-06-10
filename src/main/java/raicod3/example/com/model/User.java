@@ -47,6 +47,9 @@ public class User {
     private AuthProvider provider;
     private String providerId;
 
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private UserAddress userAddress;
+
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private ProviderProfile providerProfile;
 

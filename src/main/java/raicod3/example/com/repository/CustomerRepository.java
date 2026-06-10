@@ -2,11 +2,10 @@ package raicod3.example.com.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-import raicod3.example.com.model.ProviderProfile;
+import raicod3.example.com.model.CustomerProfile;
+
 import java.util.UUID;
 
 @Repository
-public interface ProviderRepository extends JpaRepository<ProviderProfile, UUID> {
-
-    ProviderProfile findByUserId(UUID userId);
+public interface CustomerRepository extends JpaRepository<CustomerProfile, UUID> {
 }
