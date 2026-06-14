@@ -488,6 +488,38 @@ public class AuthService {
         return APIResponse.success(data, "Successfully set the user role.", Http_Constants.OK);
     }
 
+    @Auditable(action = "USER_LOGOUT")
+    @Transactional
+    public APIResponse logout(String refreshToken, HttpServletResponse response) {
+        log.debug("Logging out for current device...");
+
+        // invalidate the specifice token in the DB
+        if(refreshToken != null && !refreshToken.isBlank()) {
+            try {
+
+                RefreshToken token = refreshTokenService.getRefreshToken((refreshToken));
+                refreshTokenRepository.delete(token);
+                log.debug("Invalidated refresh token in DB.");
+            } catch (Exception e) {
+                log.warn("Refresh token could not be invalidated during logout.");
+            }
+        }
+
+        // destroy the cookie on the client's browser
+        ResponseCookie cookie = ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(false)
+                .path("/api/v1/auth/refresh")
+                .maxAge(0)
+                .sameSite("Lax")
+                .build();
+
+        setCookieHeader(cookie.toString(), response);
+        log.info("Cleared refresh token cookie from browser.");
+
+        return APIResponse.success(null, "Successfully logged out.", Http_Constants.OK);
+    }
+
     private ResponseCookie createCookie(String token) {
         return ResponseCookie.from("refreshToken", token)
                 .httpOnly(true)

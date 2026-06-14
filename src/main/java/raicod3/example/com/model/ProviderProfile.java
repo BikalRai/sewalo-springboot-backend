@@ -39,7 +39,7 @@ public class ProviderProfile {
 
     private String pricingBasis;
 
-    private String startingRate;
+    private Integer startingRate;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", unique = true, nullable = false)
