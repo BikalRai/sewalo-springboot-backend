@@ -1,6 +1,7 @@
 package raicod3.example.com.exception;
 
 import jakarta.mail.MessagingException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -66,5 +67,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> handleUnauthorizedException(UnauthorizedException ex) {
         ErrorDetails errorDetails = new ErrorDetails("Unauthorized", ex.getMessage(), Http_Constants.UNAUTHORIZED);
         return new ResponseEntity<>(errorDetails, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorDetails> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String message = "Something went wrong.";
+
+        if (ex.getMessage().contains("phone_number")) {
+            message = "This phone number is already in use.";
+        } else if (ex.getMessage().contains("email")) {
+            message = "This email is already registered.";
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(new ErrorDetails(message, message, Http_Constants.CONFLICT));
     }
 }

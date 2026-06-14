@@ -29,7 +29,7 @@ public class ProviderResponseDto {
 
     private String pricingBasis;
 
-    private String startingRate;
+    private Integer startingRate;
 
     private UserResponseDto user;
 
