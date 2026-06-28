@@ -8,6 +8,7 @@ import raicod3.example.com.model.User;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 public class CustomUserDetails implements UserDetails {
 
@@ -32,5 +33,11 @@ public class CustomUserDetails implements UserDetails {
         return user.getEmail();
     }
 
+    public User getUser() {
+        return user;
+    }
 
+    public UUID getId() {
+        return user.getId();
+    }
 }

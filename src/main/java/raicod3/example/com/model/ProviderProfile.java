@@ -45,6 +45,9 @@ public class ProviderProfile {
     @JoinColumn(name = "user_id", unique = true, nullable = false)
     private User user;
 
+    private Boolean isVerified = false;
+    private Boolean isActive = true;
+
 
     public void updateFromDto(OnboardingProviderRequestDto req) {
         this.gender = req.getGender();

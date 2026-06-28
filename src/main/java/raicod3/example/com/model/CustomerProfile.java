@@ -12,11 +12,8 @@ import java.util.UUID;
 @Getter
 @Setter
 @ToString(exclude = "user")
-public class CustomerProfile {
+public class CustomerProfile extends AbstractBaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", unique = true, nullable = false)
