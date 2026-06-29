@@ -37,12 +37,24 @@ public class APIResponse {
         this.timestamp = System.currentTimeMillis();
     }
 
+    public APIResponse(boolean b, String message, Object o, int statusCode, ErrorCode errorCode) {
+        this.success = b;
+        this.message = message;
+        this.data = o;
+        this.statusCode = statusCode;
+        this.errorCode = errorCode;
+    }
+
     public static APIResponse success( String message, int statusCode) {
         return new APIResponse(true, message, null, statusCode );
     }
 
     public static APIResponse success(Object data, String message, int statusCode) {
         return new APIResponse(true, message, data, null, statusCode , null);
+    }
+
+    public static APIResponse error(String message, int statusCode, ErrorCode errorCode) {
+        return new APIResponse(false, message, null, statusCode, errorCode);
     }
 
     public static APIResponse error(String message, int statusCode, Object error, ErrorCode errorCode) {
