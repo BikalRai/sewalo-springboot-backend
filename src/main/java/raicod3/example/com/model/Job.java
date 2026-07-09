@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import raicod3.example.com.dto.job.JobRequestDto;
+import raicod3.example.com.enums.JobDifficulty;
 import raicod3.example.com.enums.JobStatus;
 import raicod3.example.com.enums.Urgency;
 
@@ -22,20 +23,17 @@ public class Job extends AbstractBaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
-    private  CustomerProfile customer;
+    private CustomerProfile customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private JobCategory category;
 
-    @Column(nullable = false)
-    private String title;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Urgency urgency;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT") // TEXT is better for descriptions
     private String description;
 
     @Enumerated(EnumType.STRING)
@@ -59,25 +57,36 @@ public class Job extends AbstractBaseEntity {
     @Column(nullable = false)
     private Double longitude;
 
+    @Column(nullable = false)
+    private String contactNumber; // Added to capture the frontend input
+
+    @Enumerated(EnumType.STRING)
+    private JobDifficulty difficulty;
+
     private LocalDateTime expiresAt;
     private LocalDateTime completedAt;
 
 
-    protected void onCreate()    {
-        super.onCreate();
+    protected void onJobCreate() {
+        // AbstractBaseEntity usually handles created_at/updated_at
         this.expiresAt = LocalDateTime.now().plusHours(1);
-        this.status = JobStatus.OPEN;
+
+        // Start in an analyzing state so the queue can process it before it goes live
+        if (this.status == null) {
+            this.status = JobStatus.ANALYZING;
+        }
     }
 
-    public Job(JobRequestDto dto, CustomerProfile customer, JobCategory category, UserAddress address) {
+    // Notice we pass the imageUrls separately after the service layer uploads them
+    public Job(JobRequestDto dto, CustomerProfile customer, JobCategory category) {
         this.customer = customer;
         this.category = category;
-        this.title = dto.getTitle();
-        this.urgency = dto.getUrgency();
+        this.urgency = Urgency.valueOf(dto.getUrgency().toUpperCase()); // Ensure enum mapping is safe
         this.description = dto.getDescription();
-        this.images = dto.getImages();
-        this.address = address.getFormattedAddress();
-        this.latitude = address.getLatitude();
-        this.longitude = address.getLongitude();
+        this.address = dto.getAddress();
+        this.latitude = dto.getLatitude(); // Adjusted to match standard DTO naming
+        this.longitude = dto.getLongitude(); // Adjusted to match standard DTO naming
+        this.contactNumber = dto.getPhoneNumber();
+        this.images = dto.getImages(); // Grab the URLs directly from the DTO
     }
 }

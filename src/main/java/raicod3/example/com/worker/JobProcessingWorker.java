@@ -6,9 +6,12 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import raicod3.example.com.config.RabbitMQConfig;
-import raicod3.example.com.payload.ImageProcessingTask;
+import raicod3.example.com.payload.JobAnalysisEvent;
 import raicod3.example.com.service.JobProcessingNotifier;
 
+import java.io.InputStream;
+import java.net.URI;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +29,7 @@ public class JobProcessingWorker {
         factory.setConnectTimeout(5000); // 5 seconds to connect to Ollama
         factory.setReadTimeout(180000);  // 3 minutes max for the AI to generate a response
 
-        // Build the RestClient with the factory
+        // Build the RestClient with the factory bound to Ollama's local address
         this.restClient = RestClient.builder()
                 .requestFactory(factory)
                 .baseUrl("http://localhost:11434")
@@ -34,49 +37,65 @@ public class JobProcessingWorker {
     }
 
     @RabbitListener(queues = RabbitMQConfig.JOB_ANALYSIS_QUEUE)
-    public void processJobImage(ImageProcessingTask task) {
-        log.info("Started processing image for Job ID: {}", task.jobId());
+    public void processJobImage(JobAnalysisEvent event) {
+        log.info("Started processing image for Job ID: {}", event.jobId());
 
         try {
-            // 1. Call Gemma 4 via Ollama
-            String difficulty = analyzeImageWithGemma(task.base64Image());
+            // 1. Extract the URL string
+            String imageUrl = event.imageUrls().get(0);
+            byte[] imageBytes;
 
-            // 2. Update database to ACTIVE
-            // jobService.updateJobStatus(task.jobId(), "ACTIVE", difficulty);
+            // 2. Open an HTTP connection to the URL and stream the bytes into memory
+            // Using try-with-resources ensures the network stream is closed automatically to prevent memory leaks
+            try (InputStream in = new URI(imageUrl).toURL().openStream()) {
+                imageBytes = in.readAllBytes();
+            }
 
-            // 3. Notify frontend of SUCCESS
-            notifier.notifyUserJobActive(task.userId(), task.jobId(), difficulty);
+            // 3. Convert the in-memory bytes to Base64 for Ollama
+            String base64Image = Base64.getEncoder().encodeToString(imageBytes);
+
+            // 4. Send to AI and notify
+            String difficulty = analyzeImageWithGemma(base64Image);
+
+            log.info("AI Analysis completed successfully for Job ID: {}. Resulting Difficulty: {}", event.jobId(), difficulty);
+
+            notifier.notifyUserJobActive(event.userId(), event.jobId(), difficulty);
 
         } catch (Exception e) {
-            log.error("Failed to process image for Job {}", task.jobId(), e);
-
-            // 1. Update database to FAILED so the system knows it's broken
-            // jobService.updateJobStatus(task.jobId(), "FAILED", null);
-
-            // 2. Notify frontend of FAILURE to stop the loading bar
-            notifier.notifyUserJobFailed(task.userId(), task.jobId(), "AI processing failed. Please set difficulty manually.");
+            log.error("Failed to process image for Job {}", event.jobId(), e);
+            notifier.notifyUserJobFailed(event.userId(), event.jobId(), "AI processing failed. Please set difficulty manually.");
         }
     }
 
     private String analyzeImageWithGemma(String base64Image) {
-        // Construct the strict JSON payload Ollama requires for multimodal processing
+        // 1. DIAGNOSTIC LOG: How big is this image actually?
+        log.info("Base64 Image length is: {} characters", base64Image.length());
+
+        if (base64Image.length() > 5_000_000) {
+            log.warn("WARNING: This image is extremely large. The HTTP request might choke!");
+        }
+
         Map<String, Object> requestPayload = Map.of(
-                "model", "gemma4:12b",
+                "model", "llava",
                 "prompt", "Analyze this image and determine the difficulty of the service job. Reply with ONLY one word: LOW, MEDIUM, or HIGH.",
                 "images", List.of(base64Image),
                 "stream", false
         );
 
-        // Make the HTTP POST request to Ollama and map it to a generic Java Map
+        // 2. DIAGNOSTIC LOG: Right before the network call
+        log.info("Executing POST request to Ollama at http://localhost:11434/api/generate...");
+
         @SuppressWarnings("unchecked")
         Map<String, Object> response = restClient.post()
                 .uri("/api/generate")
                 .body(requestPayload)
                 .retrieve()
-                .body(Map.class); // No imports needed for Map!
+                .body(Map.class);
+
+        // 3. DIAGNOSTIC LOG: Right after the network call returns
+        log.info("Successfully received HTTP response from Ollama API!");
 
         if (response != null && response.containsKey("response")) {
-            // Extract the "response" text field from the JSON map
             String aiResponse = String.valueOf(response.get("response"));
             return aiResponse.trim().toUpperCase();
         }

@@ -23,7 +23,7 @@ public class AuditLogService {
             auditRepository.save(auditLog);
             log.info("Audit log saved: {} - {} - {}", userId,  action, status);
         } catch (Exception e) {
-            log.error("Failed to save audti log: {}", e.getMessage());
+            log.error("Failed to save audit log: {}", e.getMessage());
         }
     }
 

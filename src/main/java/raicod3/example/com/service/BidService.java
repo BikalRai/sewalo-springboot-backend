@@ -172,7 +172,7 @@ public List<BidResponseDto> getMyBids(UUID userId) {
 }
 
 
-    private BidResponseDto toDto(Bid bid, boolean includePhone) {
+    protected BidResponseDto toDto(Bid bid, boolean includePhone) {
         User providerUser = bid.getProvider().getUser();
 
         return BidResponseDto.builder()
