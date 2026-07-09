@@ -3,6 +3,7 @@ package raicod3.example.com.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -57,10 +58,17 @@ public class JobController {
     }
 
     @GetMapping("/{jobId}")
-    @PreAuthorize("hasRole('Provider')")
+    @PreAuthorize("hasRole('PROVIDER')")
     public ResponseEntity<APIResponse> getJobById(@AuthenticationPrincipal CustomUserDetails principal, @PathVariable("jobId") UUID jobId) {
         JobResponseDto result = jobService.getJob(principal.getId(), jobId);
 
+        return ResponseEntity.ok(APIResponse.success(result, "Job found successfully", Http_Constants.OK));
+    }
+
+    @GetMapping("/my/{jobId}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<APIResponse> getMyJobById(@AuthenticationPrincipal CustomUserDetails principal, @PathVariable("jobId") UUID jobId) {
+        JobResponseDto result = jobService.getMyJob(principal.getId(), jobId);
         return ResponseEntity.ok(APIResponse.success(result, "Job found successfully", Http_Constants.OK));
     }
 }

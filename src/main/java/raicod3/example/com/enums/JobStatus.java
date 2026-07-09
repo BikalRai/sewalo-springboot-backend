@@ -5,5 +5,7 @@ public enum JobStatus {
     IN_PROGRESS,
     COMPLETED,
     CANCELLED,
-    EXPIRED
+    EXPIRED,
+    ANALYZING,
+    FAILED
 }

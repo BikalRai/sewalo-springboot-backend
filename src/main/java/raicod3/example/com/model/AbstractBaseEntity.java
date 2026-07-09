@@ -21,13 +21,13 @@ public abstract class AbstractBaseEntity implements Serializable {
     private LocalDateTime updatedAt;
 
     @PrePersist
-    protected void onCreate() {
+    protected void onBaseCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
 
     @PreUpdate
-    protected void onUpdate() {
+    protected void onBaseUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
 }

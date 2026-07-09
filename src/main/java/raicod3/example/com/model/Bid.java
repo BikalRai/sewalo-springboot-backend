@@ -38,8 +38,7 @@ public class Bid extends AbstractBaseEntity{
 
     private Boolean contactUnlocked;
 
-    protected void onCreate() {
-        super.onCreate();
+    protected void onBidCreate() {
         this.status = BidStatus.PENDING;
         this.contactUnlocked = false;
     }

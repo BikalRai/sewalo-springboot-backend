@@ -47,7 +47,9 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                        .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/google").permitAll()
+                        .requestMatchers("/api/v1/categories").hasRole("CUSTOMER")
                         .requestMatchers("/api/v1/auth/google/set-role").hasRole(GUEST)
                         .requestMatchers("/api/v1/auth/verify-account").hasAnyRole(CUSTOMER, PROVIDER)
                         .requestMatchers("/api/v1/auth/resend-code").hasAnyRole(CUSTOMER,PROVIDER)

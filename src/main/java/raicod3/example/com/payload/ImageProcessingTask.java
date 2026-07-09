@@ -1,8 +1,11 @@
 package raicod3.example.com.payload;
 
+import java.util.List;
+import java.util.UUID;
+
 public record ImageProcessingTask(
-        Long jobId,
+        UUID jobId,
         String userId, // We need this to route the WebSocket message
-        String base64Image
+        List<String> imagePaths
 ) {
 }
