@@ -9,5 +9,6 @@ import java.util.UUID;
 @Repository
 public interface JobUnlockRepository extends JpaRepository<JobUnlock, UUID> {
 
-    boolean existsByJobIdAndProviderId(UUID jobId, UUID providerId);
+    boolean existsByJob_IdAndProvider_Id(UUID jobId, UUID providerId);
+
 }
