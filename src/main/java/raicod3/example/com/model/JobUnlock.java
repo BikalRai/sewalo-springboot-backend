@@ -28,9 +28,4 @@ public class JobUnlock extends AbstractBaseEntity{
 
     private Integer tokensSpent;
 
-    private LocalDateTime unlockedAt;
-
-    protected void onCreate() {
-        this.unlockedAt = LocalDateTime.now();
-    }
 }

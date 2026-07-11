@@ -56,6 +56,12 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorDetails, HttpStatus.FORBIDDEN);
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<?> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        ErrorDetails errorDetails = new ErrorDetails("Forbidden", "You do not have permission to access this resource.", Http_Constants.FORBIDDEN);
+        return new ResponseEntity<>(errorDetails, HttpStatus.FORBIDDEN);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleGeneral(Exception ex) {
         ErrorDetails errorDetails = new ErrorDetails("Exception", ex.getMessage(), Http_Constants.INTERNAL_SERVER_ERROR);
@@ -67,6 +73,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> handleUnauthorizedException(UnauthorizedException ex) {
         ErrorDetails errorDetails = new ErrorDetails("Unauthorized", ex.getMessage(), Http_Constants.UNAUTHORIZED);
         return new ResponseEntity<>(errorDetails, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+    public ResponseEntity<?> handleMissingParam(org.springframework.web.bind.MissingServletRequestParameterException ex) {
+        ErrorDetails errorDetails = new ErrorDetails("Bad request", ex.getMessage(), Http_Constants.BAD_REQUEST);
+        return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

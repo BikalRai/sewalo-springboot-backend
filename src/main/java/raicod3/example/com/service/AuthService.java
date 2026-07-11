@@ -34,6 +34,7 @@ import raicod3.example.com.jwt.JwtUtils;
 import raicod3.example.com.lib.rabbitmq.RabbitMQProducer;
 import raicod3.example.com.model.*;
 import raicod3.example.com.repository.OTPTokenRepository;
+import raicod3.example.com.repository.ProviderCreditsRepository;
 import raicod3.example.com.repository.RefreshTokenRepository;
 import raicod3.example.com.repository.UserRepository;
 import raicod3.example.com.utilities.APIResponse;
@@ -57,9 +58,10 @@ public class AuthService {
     private final OTPTokenRepository otpTokenRepository;
     private final RefreshTokenService refreshTokenService;
     private final RabbitMQProducer rabbitMQProducer;
+    private final ProviderCreditsRepository providerCreditsRepository;
 
 
-    public AuthService(UserRepository userRepository, AuthenticationManager authenticationManager, CustomUserDetailsService customUserDetailsService, JwtUtils jwtUtils, PasswordEncoder passwordEncoder, RefreshTokenRepository refreshTokenRepository, RabbitMQProducer rabbitMQProducer, OTPTokenService otpTokenService, OTPTokenRepository otpTokenRepository, RefreshTokenService refreshTokenService) {
+    public AuthService(UserRepository userRepository, AuthenticationManager authenticationManager, CustomUserDetailsService customUserDetailsService, JwtUtils jwtUtils, PasswordEncoder passwordEncoder, RefreshTokenRepository refreshTokenRepository, RabbitMQProducer rabbitMQProducer, OTPTokenService otpTokenService, OTPTokenRepository otpTokenRepository, RefreshTokenService refreshTokenService, ProviderCreditsRepository providerCreditsRepository) {
         this.userRepository = userRepository;
         this.authenticationManager = authenticationManager;
         this.customUserDetailsService = customUserDetailsService;
@@ -70,8 +72,10 @@ public class AuthService {
         this.otpTokenService = otpTokenService;
         this.otpTokenRepository = otpTokenRepository;
         this.refreshTokenService = refreshTokenService;
+        this.providerCreditsRepository = providerCreditsRepository;
     }
 
+    @Transactional
     @Auditable(action = "REGISTER")
     public APIResponse registerUser(AuthRegistrationRequestDto request, HttpServletResponse response) {
 
@@ -125,6 +129,14 @@ public class AuthService {
 
         User savedUser = userRepository.save(user);
         log.info("Created user");
+
+        if(savedUser.getRole() == UserRole.PROVIDER){
+
+            ProviderCredits providerCredits = new ProviderCredits();
+            providerCredits.setProvider(savedUser.getProviderProfile());
+            providerCredits.setBalance(0);
+            providerCreditsRepository.save(providerCredits);
+        }
 
         log.info("Queueing welcome email for: {}", request.getEmail());
         String otpToken = NumberHelper.generateOtp();
@@ -462,8 +474,15 @@ public class AuthService {
             throw new BadRequestException("Invalid user role. Only PROVIDER or CUSTOMER accepted.");
         }
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
         log.info("Role assigned to user!");
+
+        if (savedUser.getRole() == UserRole.PROVIDER) {
+            ProviderCredits providerCredits = new ProviderCredits();
+            providerCredits.setProvider(savedUser.getProviderProfile());
+            providerCredits.setBalance(0);
+            providerCreditsRepository.save(providerCredits); // now providerProfile.id is real
+        }
 
         log.debug("Generating secure access and refresh token pairs...");
         String accessToken = jwtUtils.generateToken(user.getEmail());

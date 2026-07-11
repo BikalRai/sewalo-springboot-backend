@@ -33,6 +33,7 @@ public class JobService {
     private final JobUnlockRepository jobUnlockRepository;
     private final RabbitTemplate rabbitTemplate;
     private final BidService bidService;
+    private final ProviderCreditsRepository providerCreditsRepository;
 
     // Customer post a job
     @Transactional
@@ -103,7 +104,7 @@ public class JobService {
     @Transactional(readOnly = true)
     public JobResponseDto getJob(UUID jobId, UUID providerId) {
         Job job = jobRepository.findById(jobId).orElseThrow(() -> new ResourceNotFoundException("Job not found"));
-        boolean isUnlocked = jobUnlockRepository.existsByJobIdAndProviderId(jobId, providerId);
+        boolean isUnlocked = jobUnlockRepository.existsByJob_IdAndProvider_Id(jobId, providerId);
         return toDto(job, isUnlocked);
     }
 

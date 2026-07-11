@@ -13,7 +13,9 @@ import raicod3.example.com.custom.CustomUserDetails;
 import raicod3.example.com.dto.job.JobRequestDto;
 import raicod3.example.com.dto.job.JobResponseDto;
 import raicod3.example.com.model.Job;
+import raicod3.example.com.model.JobUnlock;
 import raicod3.example.com.service.JobService;
+import raicod3.example.com.service.JobUnlockService;
 import raicod3.example.com.utilities.APIResponse;
 
 import java.nio.file.attribute.UserPrincipal;
@@ -26,6 +28,7 @@ import java.util.UUID;
 public class JobController {
 
     private final JobService jobService;
+    private final JobUnlockService jobUnlockService;
 
     @PostMapping
     @PreAuthorize("hasRole('CUSTOMER')")
@@ -60,7 +63,7 @@ public class JobController {
     @GetMapping("/{jobId}")
     @PreAuthorize("hasRole('PROVIDER')")
     public ResponseEntity<APIResponse> getJobById(@AuthenticationPrincipal CustomUserDetails principal, @PathVariable("jobId") UUID jobId) {
-        JobResponseDto result = jobService.getJob(principal.getId(), jobId);
+        JobResponseDto result = jobService.getJob(jobId, principal.getId());
 
         return ResponseEntity.ok(APIResponse.success(result, "Job found successfully", Http_Constants.OK));
     }
@@ -70,5 +73,13 @@ public class JobController {
     public ResponseEntity<APIResponse> getMyJobById(@AuthenticationPrincipal CustomUserDetails principal, @PathVariable("jobId") UUID jobId) {
         JobResponseDto result = jobService.getMyJob(principal.getId(), jobId);
         return ResponseEntity.ok(APIResponse.success(result, "Job found successfully", Http_Constants.OK));
+    }
+
+    @PostMapping("/{jobId}/unlock")
+    @PreAuthorize("hasRole('PROVIDER')")
+    public ResponseEntity<APIResponse> unlockJob(@PathVariable UUID jobId, @AuthenticationPrincipal CustomUserDetails principal) {
+        JobUnlock result = jobUnlockService.unlockJob(principal.getId(), jobId);
+
+        return ResponseEntity.ok(APIResponse.success(result, "Job unlocked successfully", Http_Constants.OK));
     }
 }
