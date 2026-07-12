@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import raicod3.example.com.annotation.Auditable;
 import raicod3.example.com.config.RabbitMQConfig;
-import raicod3.example.com.dto.bid.BidResponseDto;
 import raicod3.example.com.dto.job.JobRequestDto;
 import raicod3.example.com.dto.job.JobResponseDto;
 import raicod3.example.com.enums.JobStatus;
@@ -143,7 +142,6 @@ public class JobService {
                 .bidCount(job.getBids() != null ? job.getBids().size() : 0)
                 .createdAt(job.getCreatedAt())
                 .expiresAt(job.getExpiresAt())
-                .bids(job.getBids().stream().map(bid -> bidService.toDto(bid, false)).toList())
                 .build();
     }
 }

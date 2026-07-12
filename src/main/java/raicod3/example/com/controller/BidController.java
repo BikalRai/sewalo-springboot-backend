@@ -9,8 +9,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import raicod3.example.com.constants.Http_Constants;
 import raicod3.example.com.custom.CustomUserDetails;
+import raicod3.example.com.dto.bid.BidConfirmationDto;
 import raicod3.example.com.dto.bid.BidRequestDto;
-import raicod3.example.com.dto.bid.BidResponseDto;
+import raicod3.example.com.dto.bid.BidSummaryDto;
 import raicod3.example.com.service.BidService;
 import raicod3.example.com.utilities.APIResponse;
 
@@ -18,7 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/bids")
+@RequestMapping("/api/v1")
 @RequiredArgsConstructor
 public class BidController {
     private final BidService bidService;
@@ -31,7 +32,7 @@ public class BidController {
             @PathVariable UUID jobId,
             @Valid @RequestBody BidRequestDto dto
     ) {
-        BidResponseDto result = bidService.placeBid(userDetails.getId(), jobId, dto);
+        BidConfirmationDto result = bidService.placeBid(userDetails.getId(), jobId, dto);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(APIResponse.success(result, "Successfully placed bid", Http_Constants.CREATED));
@@ -44,9 +45,8 @@ public class BidController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID jobId
     ) {
-        List<BidResponseDto> result = bidService.getBidsForJob(userDetails.getId(), jobId);
-        return ResponseEntity.ok(
-                APIResponse.success(result, "List of bids", Http_Constants.OK));
+        List<BidSummaryDto> result = bidService.getBidsForJob(userDetails.getId(), jobId);
+        return ResponseEntity.ok(APIResponse.success(result, "List of bids", Http_Constants.OK));
     }
 
     // CUSTOMER — accept a specific bid
@@ -57,8 +57,7 @@ public class BidController {
             @PathVariable UUID jobId,
             @PathVariable UUID bidId
     ) {
-        BidResponseDto result = bidService.acceptBid(userDetails.getId(), jobId, bidId);
-
+        BidSummaryDto result = bidService.acceptBid(userDetails.getId(), jobId, bidId);
         return ResponseEntity.ok(APIResponse.success(result, "Accepted bid successfully", Http_Constants.OK));
     }
 
@@ -69,21 +68,15 @@ public class BidController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID bidId
     ) {
-        BidResponseDto result = bidService.withdrawBid(userDetails.getId(), bidId);
-
-        return ResponseEntity.ok(
-                APIResponse.success(result, "Withdrawal successfully", Http_Constants.OK));
+        BidConfirmationDto result = bidService.withdrawBid(userDetails.getId(), bidId);
+        return ResponseEntity.ok(APIResponse.success(result, "Withdrawal successfully", Http_Constants.OK));
     }
 
     // PROVIDER — view all their own bids
     @GetMapping("/bids/my")
     @PreAuthorize("hasRole('PROVIDER')")
-    public ResponseEntity<APIResponse> getMyBids(
-            @AuthenticationPrincipal CustomUserDetails userDetails
-    ) {
-
-        List<BidResponseDto> result = bidService.getMyBids(userDetails.getId());
-
+    public ResponseEntity<APIResponse> getMyBids(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        List<BidConfirmationDto> result = bidService.getMyBids(userDetails.getId());
         return ResponseEntity.ok(APIResponse.success(result, "My bids", Http_Constants.OK));
     }
 }

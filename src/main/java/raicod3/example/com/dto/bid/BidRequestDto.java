@@ -15,6 +15,4 @@ public class BidRequestDto {
     @NotNull(message = "Quoted price is required")
     private Integer quotedPrice;
 
-    @NotBlank(message = "Pricing basis is required")
-    private String pricingBasis;
 }

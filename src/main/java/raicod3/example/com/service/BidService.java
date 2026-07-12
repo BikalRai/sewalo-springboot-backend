@@ -4,8 +4,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import raicod3.example.com.annotation.Auditable;
+import raicod3.example.com.dto.bid.BidConfirmationDto;
 import raicod3.example.com.dto.bid.BidRequestDto;
-import raicod3.example.com.dto.bid.BidResponseDto;
+import raicod3.example.com.dto.bid.BidSummaryDto;
 import raicod3.example.com.enums.BidStatus;
 import raicod3.example.com.enums.JobStatus;
 import raicod3.example.com.exception.BadRequestException;
@@ -32,7 +33,7 @@ public class BidService {
     // Provider place a bid
     @Transactional
     @Auditable(action = "PROVIDER_PLACE_BID")
-    public BidResponseDto placeBid(UUID userId, UUID jobId, BidRequestDto dto) {
+    public BidConfirmationDto placeBid(UUID userId, UUID jobId, BidRequestDto dto) {
         // Get provider and run safety gate
         ProviderProfile provider = providerProfileRepository
                 .findByUserId(userId)
@@ -81,13 +82,13 @@ public class BidService {
         bid.setProvider(provider);
         bid.setMessage(dto.getMessage());
         bid.setQuotedPrice(dto.getQuotedPrice());
-        bid.setPricingBasis(dto.getPricingBasis());
+//        bid.setPricingBasis(dto.getPricingBasis());
 
-        return toDto(bidRepository.save(bid), false);
+        return BidConfirmationDto.from(bidRepository.save(bid));
     }
 
     // Customer get bids for job
-    public List<BidResponseDto> getBidsForJob(UUID userId, UUID jobId) {
+    public List<BidSummaryDto> getBidsForJob(UUID userId, UUID jobId) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
 
@@ -98,14 +99,14 @@ public class BidService {
 
         return bidRepository.findByJobIdOrderByCreatedAtAsc(jobId)
                 .stream()
-                .map(bid -> toDto(bid, false)) // customer sees provider info, not phone
+                .map(bid -> BidSummaryDto.from(bid, false))
                 .toList();
     }
 
     // Customer accept bid
     @Transactional
     @Auditable(action = "CUSTOMER_ACCEPT_BID")
-    public BidResponseDto acceptBid(UUID userId, UUID jobId, UUID bidId) {
+    public BidSummaryDto acceptBid(UUID userId, UUID jobId, UUID bidId) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
 
@@ -124,6 +125,10 @@ public class BidService {
             throw new BadRequestException("Bid does not belong to this job");
         }
 
+        if (winningBid.getStatus() != BidStatus.PENDING) {
+            throw new BadRequestException("This bid is no longer available.");
+        }
+
         // Accept winning bid
         winningBid.setStatus(BidStatus.ACCEPTED);
 
@@ -137,13 +142,13 @@ public class BidService {
         job.setStatus(JobStatus.IN_PROGRESS);
         jobRepository.save(job);
 
-        return toDto(bidRepository.save(winningBid), false);
+        return BidSummaryDto.from(bidRepository.save(winningBid), true);
     }
 
     // Provider withdraw their bid
     @Transactional
     @Auditable(action = "PROVIDER_WITHDRAW_BID")
-    public BidResponseDto withdrawBid(UUID userId, UUID bidId) {
+    public BidConfirmationDto withdrawBid(UUID userId, UUID bidId) {
         ProviderProfile provider = providerProfileRepository
                 .findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Provider profile not found"));
@@ -156,40 +161,19 @@ public class BidService {
         }
 
         bid.setStatus(BidStatus.WITHDRAWN);
-        return toDto(bidRepository.save(bid), false);
+        return BidConfirmationDto.from(bidRepository.save(bid));
     }
 
-//    Provider view their own bids
-public List<BidResponseDto> getMyBids(UUID userId) {
-    ProviderProfile provider = providerProfileRepository
-            .findByUserId(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Provider profile not found"));
+    //    Provider view their own bids
+    public List<BidConfirmationDto> getMyBids(UUID userId) {
+        ProviderProfile provider = providerProfileRepository
+                .findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Provider profile not found"));
 
-    return bidRepository.findByProviderIdOrderByCreatedAtDesc(provider.getId())
-            .stream()
-            .map(bid -> toDto(bid, false))
-            .toList();
-}
-
-
-    protected BidResponseDto toDto(Bid bid, boolean includePhone) {
-        User providerUser = bid.getProvider().getUser();
-
-        return BidResponseDto.builder()
-                .id(bid.getId())
-                .jobId(bid.getJob().getId())
-                .providerId(bid.getProvider().getId())
-                .providerName(providerUser.getFullName())
-                .providerImageUrl(providerUser.getImageUrl())
-                .providerBio(bid.getProvider().getBio())
-                .providerStartingRate(bid.getProvider().getStartingRate())
-                .message(bid.getMessage())
-                .quotedPrice(bid.getQuotedPrice())
-                .pricingBasis(bid.getPricingBasis())
-                .status(bid.getStatus())
-                .contactUnlocked(bid.getContactUnlocked())
-                .providerPhone(includePhone ? providerUser.getPhoneNumber() : null)
-                .createdAt(bid.getCreatedAt())
-                .build();
+        return bidRepository.findByProviderIdOrderByCreatedAtDesc(provider.getId())
+                .stream()
+                .map(BidConfirmationDto::from)
+                .toList();
     }
+
 }
