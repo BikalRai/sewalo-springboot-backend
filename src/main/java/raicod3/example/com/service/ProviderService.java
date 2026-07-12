@@ -6,13 +6,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import raicod3.example.com.annotation.Auditable;
 import raicod3.example.com.dto.provider.OnboardingProviderRequestDto;
+import raicod3.example.com.dto.provider.ProviderCreditsResponseDto;
 import raicod3.example.com.dto.provider.ProviderResponseDto;
+import raicod3.example.com.exception.ResourceNotFoundException;
 import raicod3.example.com.exception.UnauthorizedException;
+import raicod3.example.com.model.ProviderCredits;
 import raicod3.example.com.model.ProviderProfile;
 import raicod3.example.com.model.User;
+import raicod3.example.com.repository.ProviderCreditsRepository;
 import raicod3.example.com.repository.ProviderRepository;
 import raicod3.example.com.repository.UserRepository;
 import raicod3.example.com.utilities.APIResponse;
+
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +26,21 @@ import raicod3.example.com.utilities.APIResponse;
 public class ProviderService {
     private final ProviderRepository providerRepository;
     private final UserRepository userRepository;
+    private final ProviderCreditsRepository providerCreditsRepository;
+
+    public ProviderCreditsResponseDto getProviderCredits(UUID providerId) {
+        log.debug("Fetching provider with ID: {}", providerId);
+        ProviderProfile provider = providerRepository.findByUserId(providerId);
+
+        if (provider == null) {
+            throw new ResourceNotFoundException("Provider not found");
+        }
+
+        log.debug("Fetching provider credits...");
+        ProviderCredits credits =  providerCreditsRepository.findById(provider.getId()).orElseThrow(() -> new ResourceNotFoundException("provider credits not found"));
+
+        return new ProviderCreditsResponseDto(provider.getId(), credits.getBalance());
+    }
 
     @Auditable(action = "PROVIDER_PERSONAL_DETAILS")
     @Transactional

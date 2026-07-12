@@ -34,12 +34,9 @@ public class Bid extends AbstractBaseEntity{
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private BidStatus status;
+    private BidStatus status = BidStatus.PENDING;
 
     private Boolean contactUnlocked;
 
-    protected void onBidCreate() {
-        this.status = BidStatus.PENDING;
-        this.contactUnlocked = false;
-    }
+
 }

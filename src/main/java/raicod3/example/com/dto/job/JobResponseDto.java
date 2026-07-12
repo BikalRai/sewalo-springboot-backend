@@ -3,7 +3,6 @@ package raicod3.example.com.dto.job;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-import raicod3.example.com.dto.bid.BidResponseDto;
 import raicod3.example.com.enums.JobDifficulty;
 import raicod3.example.com.enums.JobStatus;
 import raicod3.example.com.enums.Urgency;
@@ -35,5 +34,4 @@ public class JobResponseDto {
     private int bidCount;
     private JobDifficulty difficulty;
     private String contactNumber;
-    private List<BidResponseDto> bids;
 }

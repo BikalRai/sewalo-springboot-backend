@@ -11,6 +11,7 @@ import raicod3.example.com.enums.JobStatus;
 import raicod3.example.com.enums.Urgency;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -41,12 +42,12 @@ public class Job extends AbstractBaseEntity {
     private JobStatus status;
 
     @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Bid> bids;
+    private List<Bid> bids = new ArrayList<>();
 
     @ElementCollection
     @CollectionTable(name = "job_images", joinColumns = @JoinColumn(name = "job_id"))
     @Column(name = "image_url")
-    private List<String> images;
+    private List<String> images = new ArrayList<>();
 
     @Column(nullable = false, length = 500)
     private String address;

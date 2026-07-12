@@ -12,6 +12,7 @@ import raicod3.example.com.constants.Http_Constants;
 import raicod3.example.com.custom.CustomUserDetails;
 import raicod3.example.com.dto.job.JobRequestDto;
 import raicod3.example.com.dto.job.JobResponseDto;
+import raicod3.example.com.dto.job.JobUnlockResponseDto;
 import raicod3.example.com.model.Job;
 import raicod3.example.com.model.JobUnlock;
 import raicod3.example.com.service.JobService;
@@ -78,8 +79,16 @@ public class JobController {
     @PostMapping("/{jobId}/unlock")
     @PreAuthorize("hasRole('PROVIDER')")
     public ResponseEntity<APIResponse> unlockJob(@PathVariable UUID jobId, @AuthenticationPrincipal CustomUserDetails principal) {
-        JobUnlock result = jobUnlockService.unlockJob(principal.getId(), jobId);
+        JobUnlockResponseDto result = jobUnlockService.unlockJob(principal.getId(), jobId);
 
         return ResponseEntity.ok(APIResponse.success(result, "Job unlocked successfully", Http_Constants.OK));
+    }
+
+    @GetMapping("/my/unlocks")
+    @PreAuthorize("hasRole('PROVIDER')")
+    public ResponseEntity<APIResponse> getMyUnlocks(@AuthenticationPrincipal CustomUserDetails principal) {
+        List<JobUnlockResponseDto> unlocks = jobUnlockService.unlockedobs(principal.getId());
+
+        return ResponseEntity.ok(APIResponse.success(unlocks, "List of unlocked jobs", Http_Constants.OK));
     }
 }
