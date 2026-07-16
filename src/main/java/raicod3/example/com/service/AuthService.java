@@ -12,6 +12,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.RestTemplate;
 import raicod3.example.com.annotation.Auditable;
 import raicod3.example.com.constants.Http_Constants;
@@ -151,8 +153,13 @@ public class AuthService {
         emailRequest.setSubject("Welcome to Sewalo");
         emailRequest.setTemplatePath("/email/verify-account");
 
-        rabbitMQProducer.sendEmailNotification(emailRequest);
-        log.info("Welcome email queued successfully for: {}", request.getEmail());
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                rabbitMQProducer.sendEmailNotification(emailRequest);
+                log.info("Welcome email queued successfully for: {}", request.getEmail());
+            }
+        });
 
         UserResponseDto userResponseDto = new UserResponseDto(savedUser);
 
@@ -385,9 +392,15 @@ public class AuthService {
        emailRequest.setOtpToken(generateOtp);
        emailRequest.setTemplatePath("/email/verificationCode.html");
 
-       rabbitMQProducer.sendEmailNotification(emailRequest);
-       log.info("Verification code resend email queued successfully for: {}", foundUser.getEmail());
-       log.info("Sending verification code...");
+        log.info("Sending verification code...");
+//       TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+//           @Override
+//           public void afterCommit() {
+               rabbitMQProducer.sendEmailNotification(emailRequest);
+               log.info("Verification code resend email queued successfully for: {}", foundUser.getEmail());
+//           }
+//       });
+
 
        return APIResponse.success("Verification code resent successfully", Http_Constants.OK);
     }
@@ -441,8 +454,13 @@ public class AuthService {
         emailRequest.setOtpToken(otpToken);
         emailRequest.setTemplatePath("/email/forgot-password");
 
-        rabbitMQProducer.sendEmailNotification(emailRequest);
-        log.info("Password reset email queued for: {}", req.getEmail());
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                rabbitMQProducer.sendEmailNotification(emailRequest);
+                log.info("Password reset email queued for: {}", req.getEmail());
+            }
+        });
 
         return APIResponse.success("Password reset email sent successfully.", Http_Constants.OK);
     }

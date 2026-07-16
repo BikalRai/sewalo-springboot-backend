@@ -6,7 +6,6 @@ import lombok.Setter;
 import raicod3.example.com.enums.JobDifficulty;
 import raicod3.example.com.enums.JobStatus;
 import raicod3.example.com.enums.Urgency;
-import raicod3.example.com.model.Bid;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,4 +33,5 @@ public class JobResponseDto {
     private int bidCount;
     private JobDifficulty difficulty;
     private String contactNumber;
+    private Double distance;
 }

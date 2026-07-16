@@ -25,6 +25,8 @@ public class ProviderResponseDto {
 
     private List<String> workDistrict;
 
+    private List<String> services;
+
     private String bio;
 
     private String pricingBasis;
@@ -40,6 +42,7 @@ public class ProviderResponseDto {
         this.bio = profile.getBio();
         this.pricingBasis = profile.getPricingBasis();
         this.startingRate = profile.getStartingRate();
+        this.services = profile.getServices();
         this.user = new UserResponseDto(user);
     }
 }

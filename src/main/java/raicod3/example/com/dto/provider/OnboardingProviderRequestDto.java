@@ -1,9 +1,6 @@
 package raicod3.example.com.dto.provider;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -44,4 +41,19 @@ public class OnboardingProviderRequestDto {
     @NotNull(message = "Starting rate cannot be null")
     @Min(value = 0, message = "Starting rate cannot be negative")
     private Integer startingRate;
+
+    // --- NEW LOCATION FIELDS ---
+
+    @NotNull(message = "Latitude is required")
+    @Min(value = -90, message = "Latitude must be valid (between -90 and 90)")
+    @Max(value = 90, message = "Latitude must be valid (between -90 and 90)")
+    private Double latitude;
+
+    @NotNull(message = "Longitude is required")
+    @Min(value = -180, message = "Longitude must be valid (between -180 and 180)")
+    @Max(value = 180, message = "Longitude must be valid (between -180 and 180)")
+    private Double longitude;
+
+    @NotBlank(message = "Address is required")
+    private String address;
 }

@@ -2,6 +2,7 @@ package raicod3.example.com.dto.bid;
 
 import lombok.Builder;
 import raicod3.example.com.enums.BidStatus;
+import raicod3.example.com.model.Bid;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -22,7 +23,7 @@ public record BidSummaryDto(
         Boolean contactUnlocked,
         LocalDateTime createdAt
 ) {
-    public static BidSummaryDto from(raicod3.example.com.model.Bid bid, boolean revealPhone) {
+    public static BidSummaryDto from(Bid bid, boolean revealPhone) {
         return BidSummaryDto.builder()
                 .id(bid.getId())
                 .providerId(bid.getProvider().getId())

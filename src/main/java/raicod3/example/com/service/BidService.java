@@ -88,6 +88,7 @@ public class BidService {
     }
 
     // Customer get bids for job
+    @Transactional
     public List<BidSummaryDto> getBidsForJob(UUID userId, UUID jobId) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
@@ -174,6 +175,15 @@ public class BidService {
                 .stream()
                 .map(BidConfirmationDto::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isBidAccepted(UUID jobId, UUID providerId) {
+        return bidRepository.existsByJobIdAndProviderIdAndStatus(
+                jobId,
+                providerId,
+                BidStatus.ACCEPTED
+        );
     }
 
 }

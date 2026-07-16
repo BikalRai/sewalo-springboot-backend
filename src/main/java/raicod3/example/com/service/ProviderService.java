@@ -13,6 +13,7 @@ import raicod3.example.com.exception.UnauthorizedException;
 import raicod3.example.com.model.ProviderCredits;
 import raicod3.example.com.model.ProviderProfile;
 import raicod3.example.com.model.User;
+import raicod3.example.com.model.UserAddress;
 import raicod3.example.com.repository.ProviderCreditsRepository;
 import raicod3.example.com.repository.ProviderRepository;
 import raicod3.example.com.repository.UserRepository;
@@ -27,6 +28,16 @@ public class ProviderService {
     private final ProviderRepository providerRepository;
     private final UserRepository userRepository;
     private final ProviderCreditsRepository providerCreditsRepository;
+
+    public ProviderResponseDto findById(UUID id) {
+        ProviderProfile provider = providerRepository.findByUserId(id);
+
+        if(provider == null){
+            throw new ResourceNotFoundException("Provider not found");
+        }
+
+        return new ProviderResponseDto(provider, provider.getUser());
+    }
 
     public ProviderCreditsResponseDto getProviderCredits(UUID providerId) {
         log.debug("Fetching provider with ID: {}", providerId);
@@ -46,12 +57,27 @@ public class ProviderService {
     @Transactional
     public APIResponse updateProviderProfile (OnboardingProviderRequestDto dto, String email) {
         log.debug("Validating user...");
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new UnauthorizedException("Unauthorized. user not found"));
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UnauthorizedException("Unauthorized. user not found"));
 
         log.debug("Updating provider's user details...");
         user.setImageUrl(dto.getImageUrl());
         user.setPhoneNumber(dto.getPhoneNumber());
         user.setOnboarded(true);
+
+        // --- NEW: Handle User Address Mapping ---
+        log.debug("Updating user address...");
+        UserAddress address = user.getUserAddress();
+        if (address == null) {
+            // If they don't have an address record yet, create one
+            address = new UserAddress();
+            address.setUser(user);
+            user.setUserAddress(address); // Link it back to the user for the cascade
+        }
+        // Update the coordinates and formatted string
+        address.setLatitude(dto.getLatitude());
+        address.setLongitude(dto.getLongitude());
+        address.setFormattedAddress(dto.getAddress());
 
         log.debug("Fetching pre-existing provider details...");
         ProviderProfile providerProfile = providerRepository.findByUserId(user.getId());
@@ -60,8 +86,10 @@ public class ProviderService {
             throw new IllegalStateException("Critical Data Error: Provider profile is missing for a registered user.");
         }
 
+        // This now ONLY updates bio, services, rates, etc.
         providerProfile.updateFromDto(dto);
 
+        // Because of CascadeType.ALL on UserAddress, saving the User saves the Address too.
         userRepository.save(user);
         providerRepository.save(providerProfile);
 

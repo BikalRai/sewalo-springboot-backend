@@ -57,5 +57,6 @@ public class ProviderProfile {
         this.bio = req.getBio();
         this.pricingBasis = req.getPricingBasis();
         this.startingRate = req.getStartingRate();
+
     }
 }

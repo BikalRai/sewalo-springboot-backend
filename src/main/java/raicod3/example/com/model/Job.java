@@ -9,6 +9,7 @@ import raicod3.example.com.dto.job.JobRequestDto;
 import raicod3.example.com.enums.JobDifficulty;
 import raicod3.example.com.enums.JobStatus;
 import raicod3.example.com.enums.Urgency;
+import raicod3.example.com.utilities.AddressUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -52,6 +53,9 @@ public class Job extends AbstractBaseEntity {
     @Column(nullable = false, length = 500)
     private String address;
 
+    @Column(length = 255)
+    private String maskedAddress;
+
     @Column(nullable = false)
     private Double latitude;
 
@@ -85,6 +89,7 @@ public class Job extends AbstractBaseEntity {
         this.urgency = Urgency.valueOf(dto.getUrgency().toUpperCase()); // Ensure enum mapping is safe
         this.description = dto.getDescription();
         this.address = dto.getAddress();
+        this.maskedAddress = AddressUtils.generateMaskedAddress(dto.getAddress());
         this.latitude = dto.getLatitude(); // Adjusted to match standard DTO naming
         this.longitude = dto.getLongitude(); // Adjusted to match standard DTO naming
         this.contactNumber = dto.getPhoneNumber();
