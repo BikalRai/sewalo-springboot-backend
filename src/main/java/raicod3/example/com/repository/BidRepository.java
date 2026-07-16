@@ -13,6 +13,9 @@ import java.util.UUID;
 
 @Repository
 public interface BidRepository extends JpaRepository<Bid, UUID> {
+
+    boolean existsByJobIdAndProviderIdAndStatus(UUID jobId, UUID providerId, BidStatus status);
+
     // All bids on a job — homeowner uses this
     List<Bid> findByJobIdOrderByCreatedAtAsc(UUID jobId);
 
