@@ -13,4 +13,6 @@ public interface JobUnlockRepository extends JpaRepository<JobUnlock, UUID> {
     boolean existsByJob_IdAndProvider_Id(UUID jobId, UUID providerId);
 
     List<JobUnlock> findAllByProviderId(UUID providerId);
+
+    List<JobUnlock> findByProviderIdAndJobIdIn(UUID providerId, List<UUID> jobIds);
 }

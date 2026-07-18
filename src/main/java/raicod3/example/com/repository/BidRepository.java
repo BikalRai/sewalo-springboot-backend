@@ -33,4 +33,14 @@ public interface BidRepository extends JpaRepository<Bid, UUID> {
     List<Bid> findByJobIdAndStatusNot(UUID jobId, BidStatus status);
 
     Optional<Bid> findByIdAndProviderId(UUID bidId, UUID providerId);
+
+    Optional<Bid> findByJobIdAndProviderId(UUID jobId, UUID providerId);
+
+    List<Bid> findByProviderIdAndJobIdIn(UUID providerId, List<UUID> jobIds);
+
+    @Query("SELECT b FROM Bid b JOIN FETCH b.job j WHERE b.provider.id = :providerId AND b.status IN :statuses ORDER BY b.createdAt DESC")
+    List<Bid> findByProviderIdAndStatusInWithJobs(
+            @Param("providerId") UUID providerId,
+            @Param("statuses") List<BidStatus> statuses
+    );
 }
