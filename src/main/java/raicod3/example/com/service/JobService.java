@@ -9,8 +9,10 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import raicod3.example.com.annotation.Auditable;
 import raicod3.example.com.config.RabbitMQConfig;
+import raicod3.example.com.dto.bid.BidSummaryDto;
 import raicod3.example.com.dto.job.JobRequestDto;
 import raicod3.example.com.dto.job.JobResponseDto;
+import raicod3.example.com.enums.BidStatus;
 import raicod3.example.com.enums.JobStatus;
 import raicod3.example.com.exception.BadRequestException;
 import raicod3.example.com.exception.ResourceNotFoundException;
@@ -20,9 +22,8 @@ import raicod3.example.com.payload.JobAnalysisEvent;
 import raicod3.example.com.repository.*;
 import raicod3.example.com.utilities.LocationUtils;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -34,6 +35,7 @@ public class JobService {
     private final JobUnlockRepository jobUnlockRepository;
     private final RabbitTemplate rabbitTemplate;
     private final BidService bidService;
+    private final BidRepository bidRepository;
     private final ProviderCreditsRepository providerCreditsRepository;
     private final ProviderRepository providerRepository;
     private final UserRepository userRepository;
@@ -78,7 +80,7 @@ public class JobService {
             });
         }
 
-        return toDto(savedJob, true, true);
+        return toDto(savedJob, true, true, false, null);
     }
 
     @Transactional(readOnly = true)
@@ -87,7 +89,7 @@ public class JobService {
                 .orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
 
         return jobRepository.findByCustomer_IdOrderByCreatedAtDesc(customer.getId())
-                .stream().map(job -> toDto(job, true, true)).toList();
+                .stream().map(job -> toDto(job, true, true, false, null)).toList();
     }
 
     @Transactional
@@ -100,39 +102,122 @@ public class JobService {
         }
 
         job.setStatus(JobStatus.CANCELLED);
-        return toDto(jobRepository.save(job), true, true);
+        return toDto(jobRepository.save(job), true, true, false, null);
     }
 
     @Transactional(readOnly = true)
     public List<JobResponseDto> getOpenJobs(UUID userId) {
-        // 1. Fetch the provider profile
         ProviderProfile provider = providerRepository.findByUserId(userId);
 
         if (provider == null || provider.getServices() == null || provider.getServices().isEmpty()) {
             return Collections.emptyList();
         }
 
-        // --- Extract Provider's Base Coordinates ---
-        UserAddress providerAddress = provider.getUser().getUserAddress();
-        if (providerAddress == null) {
-            // Defensive check: If provider bypassed onboarding somehow, return jobs without distance
-            return jobRepository.findByStatusAndCategoryNameInOrderByCreatedAtDesc(JobStatus.OPEN, provider.getServices())
-                    .stream().map(job -> toDto(job, false, false)).toList();
-        }
-
-        Double providerLat = providerAddress.getLatitude();
-        Double providerLon = providerAddress.getLongitude();
-
-        // 2. Fetch matched jobs
+        // 1. Fetch matched jobs
         List<Job> matchedJobs = jobRepository.findByStatusAndCategoryNameInOrderByCreatedAtDesc(
                 JobStatus.OPEN,
                 provider.getServices()
         );
 
-        // 3. Map to DTO and calculate distance dynamically against the JOB's coordinates
-        return matchedJobs.stream()
-                .map(job -> toDtoWithDistance(job, false, false, providerLat, providerLon))
-                .toList();
+        if (matchedJobs.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // --- THE BATCH FETCHING LOGIC ---
+
+        // Extract all Job IDs from the matched jobs
+        List<UUID> jobIds = matchedJobs.stream().map(Job::getId).toList();
+
+        // Batch fetch Unlocks and convert to a Set for O(1) lookups
+        Set<UUID> unlockedJobIds = jobUnlockRepository.findByProviderIdAndJobIdIn(provider.getId(), jobIds)
+                .stream()
+                .map(unlock -> unlock.getJob().getId())
+                .collect(Collectors.toSet());
+
+        // Batch fetch Bids and convert to a Map (JobId -> Bid) for O(1) lookups
+        Map<UUID, Bid> providerBidsMap = bidRepository.findByProviderIdAndJobIdIn(provider.getId(), jobIds)
+                .stream()
+                .collect(Collectors.toMap(bid -> bid.getJob().getId(), bid -> bid));
+
+        // --- EXTRACT PROVIDER BASE COORDINATES ---
+        UserAddress providerAddress = provider.getUser().getUserAddress();
+        Double providerLat = providerAddress != null ? providerAddress.getLatitude() : null;
+        Double providerLon = providerAddress != null ? providerAddress.getLongitude() : null;
+
+        // 2. Map to DTO in memory
+        return matchedJobs.stream().map(job -> {
+            // Fast memory lookups instead of database hits
+            boolean isUnlocked = unlockedJobIds.contains(job.getId());
+            Bid myBid = providerBidsMap.get(job.getId());
+            BidSummaryDto bidSummary = myBid != null ? BidSummaryDto.from(myBid, false) : null;
+
+            if (providerLat == null || providerLon == null) {
+                // Fallback if provider has no address
+                return toDto(job, isUnlocked, false, isUnlocked, bidSummary);
+            }
+
+            // Return with dynamically calculated distance and correct UI state flags
+            return toDtoWithDistance(
+                    job,
+                    isUnlocked, // includeAddress (show real address if unlocked)
+                    false,      // includeContact (keep hidden in list view)
+                    isUnlocked, // isUnlocked
+                    bidSummary, // myBid
+                    providerLat,
+                    providerLon
+            );
+        }).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<JobResponseDto> getJobsList(UUID userId) {
+// 1. Ensure the provider exists
+        ProviderProfile provider = providerRepository.findByUserId(userId);
+        if (provider == null) {
+            return Collections.emptyList();
+        }
+
+        // 2. Fetch all relevant bids (Pending + Accepted).
+        // The JOIN FETCH in the repository ensures the Job entities are loaded in memory.
+        // NOTE: If you strictly want ONLY accepted/completed, remove BidStatus.PENDING from this list.
+        List<BidStatus> activeStatuses = List.of(BidStatus.PENDING, BidStatus.ACCEPTED);
+
+        List<Bid> myBids = bidRepository.findByProviderIdAndStatusInWithJobs(
+                provider.getId(),
+                activeStatuses
+        );
+
+        if (myBids.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 3. Extract provider's location for distance mapping
+        UserAddress providerAddress = provider.getUser().getUserAddress();
+        Double providerLat = providerAddress != null ? providerAddress.getLatitude() : null;
+        Double providerLon = providerAddress != null ? providerAddress.getLongitude() : null;
+
+        // 4. Map directly to DTOs in O(N) time with zero extra database hits
+        return myBids.stream().map(bid -> {
+            Job job = bid.getJob();
+            BidSummaryDto bidSummary = BidSummaryDto.from(bid, false);
+
+            // SECURITY CHECK: Only reveal exact address and phone number if the bid was Accepted.
+            // A Pending bid means the customer hasn't hired them yet.
+            boolean isAccepted = bid.getStatus() == BidStatus.ACCEPTED;
+
+            // Since they placed a bid, we know they unlocked it. No need to query the Unlock table.
+            boolean isUnlocked = true;
+
+            return toDtoWithDistance(
+                    job,
+                    isAccepted,  // includeAddress (True if accepted, false if just pending)
+                    isAccepted,  // includeContact (True if accepted, false if just pending)
+                    isUnlocked,  // isUnlocked (Always true here)
+                    bidSummary,  // myBid
+                    providerLat,
+                    providerLon
+            );
+        }).toList();
     }
 
     @Transactional(readOnly = true)
@@ -150,12 +235,16 @@ public class JobService {
         boolean isUnlocked = jobUnlockRepository.existsByJob_IdAndProvider_Id(jobId, provider.getId());
         boolean hasWonBid = bidService.isBidAccepted(jobId, provider.getId());
 
+        BidSummaryDto myBid = bidRepository.findByJobIdAndProviderId(jobId, provider.getId())
+                .map(bid -> BidSummaryDto.from(bid, false)) // false = don't reveal phone number
+                .orElse(null);
+
         // 3. Distance Calculation Setup
         UserAddress providerAddress = provider.getUser().getUserAddress();
 
         if (providerAddress == null) {
             // Fallback: If they somehow have no address, return without distance
-            return toDto(job, isUnlocked, hasWonBid);
+            return toDto(job, isUnlocked, hasWonBid, isUnlocked, myBid);
         }
 
         // 4. Return with full masking logic AND distance
@@ -163,6 +252,8 @@ public class JobService {
                 job,
                 isUnlocked,
                 hasWonBid,
+                isUnlocked,
+                myBid,
                 providerAddress.getLatitude(),
                 providerAddress.getLongitude()
         );
@@ -171,7 +262,7 @@ public class JobService {
     @Transactional(readOnly = true)
     public JobResponseDto getMyJob(UUID userId, UUID jobId) {
         Job job = getJobAndValidateOwner(userId, jobId);
-        return toDto(job, true, true); // customer always sees their own full address
+        return toDto(job, true, true, false, null); // customer always sees their own full address
     }
 
     private Job getJobAndValidateOwner(UUID userId, UUID jobId) {
@@ -183,7 +274,7 @@ public class JobService {
         return job;
     }
 
-    private JobResponseDto toDto(Job job, boolean showFullAddress, boolean showContact) {
+    private JobResponseDto toDto(Job job, boolean showFullAddress, boolean showContact, boolean isUnLocked, BidSummaryDto myBid) {
         return JobResponseDto.builder()
                 .id(job.getId())
                 .description(job.getDescription())
@@ -202,17 +293,19 @@ public class JobService {
 
                 // If true, show the real number. If false, send null so the UI can't render it.
                 .contactNumber(showContact ? job.getContactNumber() : null)
+                .isUnlocked(isUnLocked)
 
                 .customerName(job.getCustomer().getUser().getFullName())
                 .customerImageUrl(job.getCustomer().getUser().getImageUrl())
                 .bidCount(job.getBids() != null ? job.getBids().size() : 0)
                 .createdAt(job.getCreatedAt())
                 .expiresAt(job.getExpiresAt())
+                .myBid(myBid)
                 .build();
     }
 
-    private JobResponseDto toDtoWithDistance(Job job, boolean includeAddress, boolean includeContact, Double providerLat, Double providerLon) {
-        JobResponseDto dto = toDto(job, includeAddress, includeContact);
+    private JobResponseDto toDtoWithDistance(Job job, boolean includeAddress, boolean includeContact, boolean isUnlocked, BidSummaryDto myBid, Double providerLat, Double providerLon) {
+        JobResponseDto dto = toDto(job, includeAddress, includeContact, isUnlocked, myBid);
 
         // Calculate distance: Provider Base (UserAddress) -> Job Location (Job entity)
         dto.setDistance(LocationUtils.calculateDistance(

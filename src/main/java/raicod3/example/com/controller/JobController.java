@@ -91,4 +91,12 @@ public class JobController {
 
         return ResponseEntity.ok(APIResponse.success(unlocks, "List of unlocked jobs", Http_Constants.OK));
     }
+
+    @GetMapping("/my/job-list")
+    @PreAuthorize("hasRole('PROVIDER')")
+    public ResponseEntity<APIResponse> getMyJobsList(@AuthenticationPrincipal CustomUserDetails principal) {
+        List<JobResponseDto> result = jobService.getJobsList(principal.getId());
+
+        return ResponseEntity.ok(APIResponse.success(result, "Jobs retrieved successfully", Http_Constants.OK));
+    }
 }
